@@ -96,8 +96,9 @@ class PulseDeckHandler(SimpleHTTPRequestHandler):
         if parsed.path in {"/api/world", "/api/research"}:
             query = parse_qs(parsed.query)
             keywords = normalize_keywords(query.get("keywords", [""])[0])
+            force_refresh = query.get("force", ["0"])[0] == "1"
             feed_type = "world" if parsed.path.endswith("/world") else "research"
-            payload = get_cached_feed(feed_type, keywords)
+            payload = get_cached_feed(feed_type, keywords, force_refresh=force_refresh)
             self.respond_json(payload)
             return
 
@@ -113,12 +114,12 @@ class PulseDeckHandler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
 
-def get_cached_feed(feed_type: str, keywords: list[str]) -> dict[str, Any]:
+def get_cached_feed(feed_type: str, keywords: list[str], force_refresh: bool = False) -> dict[str, Any]:
     cache_key = (feed_type, ",".join(keywords))
     cached = feed_cache.get(cache_key)
     now = time.time()
 
-    if cached and now - cached["stored_at"] < CACHE_TTL_SECONDS:
+    if not force_refresh and cached and now - cached["stored_at"] < CACHE_TTL_SECONDS:
         return cached["payload"]
 
     payload = build_world_feed_payload(keywords) if feed_type == "world" else build_research_feed_payload(keywords)

@@ -144,7 +144,9 @@ async function refreshStream(type, { manual = false } = {}) {
   renderFeed(type);
 
   const previousTopId = state[`${type}Items`][0]?.id;
-  const endpoint = `/api/${type}?keywords=${encodeURIComponent(state.settings.keywords)}`;
+  const endpoint = `/api/${type}?keywords=${encodeURIComponent(state.settings.keywords)}${
+    manual ? "&force=1" : ""
+  }`;
 
   try {
     const response = await fetch(endpoint, { cache: "no-store" });
