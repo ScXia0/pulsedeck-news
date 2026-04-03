@@ -932,12 +932,7 @@ function renderMetrics() {
   elements.systemMode.textContent = liveCount === STREAM_TYPES.length ? "四流轮换" : "混合模式";
   elements.dataModeBadge.textContent =
     liveCount === STREAM_TYPES.length ? "4 STREAMS LIVE" : "MIXED SOURCES";
-  elements.sourceSummary.textContent = [
-    `热点: ${buildSourceLine(state.sourceMeta.world)}`,
-    `研究: ${buildSourceLine(state.sourceMeta.research)}`,
-    `音乐: ${buildSourceLine(state.sourceMeta.music)}`,
-    `娱乐: ${buildSourceLine(state.sourceMeta.entertainment)}`,
-  ].join(" | ");
+  elements.sourceSummary.innerHTML = buildSourceSummaryMarkup();
   renderPulseRail();
   renderSpotlight();
   renderFocusConsole();
@@ -950,6 +945,36 @@ function buildSourceLine(meta) {
   const providers = Array.isArray(meta.providers) ? meta.providers.slice(0, 3).join(" / ") : provider;
   const error = meta.error ? ` · ${meta.error}` : "";
   return `${provider} · ${poolSize} · ${fetched} · ${providers}${error}`;
+}
+
+function buildSourceSummaryMarkup() {
+  return STREAM_TYPES.map((type) => {
+    const meta = state.sourceMeta[type];
+    const title =
+      type === "world"
+        ? "热点"
+        : type === "research"
+          ? "研究"
+          : type === "music"
+            ? "音乐"
+            : "娱乐";
+    const provider = meta.provider || "未知来源";
+    const poolSize = meta.poolSize ? `${meta.poolSize} 条` : "0 条";
+    const fetched = meta.fetchedAt ? formatTime(new Date(meta.fetchedAt)) : "未拉取";
+    const providers = Array.isArray(meta.providers) ? meta.providers.slice(0, 2).join(" / ") : provider;
+    const error = meta.error ? "暂时异常" : meta.mode === "live" ? "在线" : "后备";
+
+    return `
+      <div class="source-summary-item source-${type}">
+        <div class="source-summary-top">
+          <span class="source-summary-name">${escapeHtml(title)}</span>
+          <span class="source-summary-state">${escapeHtml(error)}</span>
+        </div>
+        <div class="source-summary-meta">${escapeHtml(provider)} · ${escapeHtml(poolSize)} · ${escapeHtml(fetched)}</div>
+        <div class="source-summary-sub">${escapeHtml(providers)}</div>
+      </div>
+    `;
+  }).join("");
 }
 
 function handleSaveSettings() {
