@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import hashlib
+import html
 import json
 import os
+import random
+import re
 import time
+import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
-from functools import lru_cache
+from email.utils import parsedate_to_datetime
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -19,31 +25,75 @@ BASE_DIR = Path(__file__).resolve().parent
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "8000"))
 CACHE_TTL_SECONDS = 20 * 60
+WORLD_POOL_LIMIT = 48
+RESEARCH_POOL_LIMIT = 42
+BATCH_SIZE = 6
+ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
+REQUEST_HEADERS = {
+    "User-Agent": "XscNews/1.0 (+https://xscnews.local)",
+    "Accept": "application/json, application/rss+xml, application/atom+xml, text/xml, application/xml;q=0.9, */*;q=0.8",
+}
 
 WORLD_FALLBACK = [
     {
         "id": "world-fallback-1",
         "title": "全球主要资本市场关注央行政策窗口",
-        "summary": "实时新闻源不可用时，系统会回退到这一组后备观察主题，确保界面持续可读。",
+        "summary": "实时新闻源不可用时，系统会回退到后备内容池，确保你依旧可以换一批查看不同主题。",
         "region": "Global Macro",
         "signal": "后备数据",
         "relevance": "资金流向、汇率与成长股估值",
         "timestamp": "本地后备",
-        "url": "",
+        "url": "https://www.bing.com/news/search?q=%E5%85%A8%E7%90%83%E4%B8%BB%E8%A6%81%E8%B5%84%E6%9C%AC%E5%B8%82%E5%9C%BA%E5%85%B3%E6%B3%A8%E5%A4%AE%E8%A1%8C%E6%94%BF%E7%AD%96%E7%AA%97%E5%8F%A3",
         "provider": "本地后备",
-        "linkLabel": "",
+        "linkLabel": "查看线索",
     },
     {
         "id": "world-fallback-2",
         "title": "中东与红海航运风险仍在牵动能源与物流",
-        "summary": "地缘风险、航运路径和能源价格仍是全球宏观新闻中的高频线索。",
+        "summary": "当地缘风险重新升温时，能源价格、物流成本和全球供应链都会出现连锁反馈。",
         "region": "Middle East",
         "signal": "后备数据",
         "relevance": "能源价格、运费与供应链韧性",
         "timestamp": "本地后备",
-        "url": "",
+        "url": "https://www.bing.com/news/search?q=%E7%BA%A2%E6%B5%B7+%E8%88%AA%E8%BF%90+%E8%83%BD%E6%BA%90",
         "provider": "本地后备",
-        "linkLabel": "",
+        "linkLabel": "查看线索",
+    },
+    {
+        "id": "world-fallback-3",
+        "title": "全球 AI 基础设施投资持续扩张",
+        "summary": "算力、数据中心、电力与冷却系统正在成为全球科技投资中的重要主线。",
+        "region": "Tech",
+        "signal": "后备数据",
+        "relevance": "算力、芯片、云服务与电力建设",
+        "timestamp": "本地后备",
+        "url": "https://www.bing.com/news/search?q=AI+infrastructure+data+center+investment",
+        "provider": "本地后备",
+        "linkLabel": "查看线索",
+    },
+    {
+        "id": "world-fallback-4",
+        "title": "平台治理与数据合规规则继续变化",
+        "summary": "生成式 AI、平台责任和跨境数据流依然是科技监管的重要观察方向。",
+        "region": "Policy",
+        "signal": "后备数据",
+        "relevance": "合规成本、产品设计与跨境数据流",
+        "timestamp": "本地后备",
+        "url": "https://www.bing.com/news/search?q=AI+policy+data+regulation",
+        "provider": "本地后备",
+        "linkLabel": "查看线索",
+    },
+    {
+        "id": "world-fallback-5",
+        "title": "全球创业投资仍然偏好 AI 与高效率软件",
+        "summary": "投资逻辑更偏向真实收入、明确场景和成本效率，而不是纯概念故事。",
+        "region": "Venture",
+        "signal": "后备数据",
+        "relevance": "创业公司融资窗口与赛道判断",
+        "timestamp": "本地后备",
+        "url": "https://www.bing.com/news/search?q=AI+startup+funding+software",
+        "provider": "本地后备",
+        "linkLabel": "查看线索",
     },
 ]
 
@@ -51,27 +101,117 @@ RESEARCH_FALLBACK = [
     {
         "id": "research-fallback-1",
         "title": "多智能体工作流从 demo 转向可控生产化",
-        "summary": "后备研究流仍然会保留最近值得跟踪的 AI / NLP 方向，避免页面出现空状态。",
+        "summary": "Agent 体系正在从单轮演示走向更可靠的任务闭环和工程落地。",
         "domain": "Agents",
         "signal": "后备数据",
         "relevance": "工作流自动化、企业 Copilot、复杂任务分解",
         "timestamp": "本地后备",
-        "url": "",
+        "url": "https://www.semanticscholar.org/search?q=multi-agent%20workflow%20llm",
         "provider": "本地后备",
-        "linkLabel": "",
+        "linkLabel": "搜索论文",
     },
     {
         "id": "research-fallback-2",
         "title": "长上下文模型继续探索检索与压缩协同",
-        "summary": "检索增强、记忆压缩和结构化状态管理仍然是近阶段的重要研究议题。",
+        "summary": "检索增强、记忆压缩和结构化状态管理仍然是提升长文档能力的重要路径。",
         "domain": "LLM Systems",
         "signal": "后备数据",
         "relevance": "知识助手、代码理解、长文档分析",
         "timestamp": "本地后备",
-        "url": "",
+        "url": "https://www.semanticscholar.org/search?q=long%20context%20llm%20retrieval",
         "provider": "本地后备",
-        "linkLabel": "",
+        "linkLabel": "搜索论文",
     },
+    {
+        "id": "research-fallback-3",
+        "title": "小模型蒸馏与高效推理仍然很关键",
+        "summary": "端侧部署、私有化推理和成本优化继续推动高效模型研究。",
+        "domain": "Efficient AI",
+        "signal": "后备数据",
+        "relevance": "移动端部署、私有化模型、成本优化",
+        "timestamp": "本地后备",
+        "url": "https://www.semanticscholar.org/search?q=small%20language%20model%20distillation",
+        "provider": "本地后备",
+        "linkLabel": "搜索论文",
+    },
+    {
+        "id": "research-fallback-4",
+        "title": "多模态理解与推理正在持续深化",
+        "summary": "视觉、语音与文本协同推理仍是下一阶段智能助手的重要能力基础。",
+        "domain": "Multimodal",
+        "signal": "后备数据",
+        "relevance": "智能助手、机器人、人机交互",
+        "timestamp": "本地后备",
+        "url": "https://www.semanticscholar.org/search?q=multimodal%20reasoning%20model",
+        "provider": "本地后备",
+        "linkLabel": "搜索论文",
+    },
+    {
+        "id": "research-fallback-5",
+        "title": "NLP 评测越来越强调真实任务效果",
+        "summary": "线上稳定性、鲁棒性和任务完成率正在比单点 benchmark 分数更重要。",
+        "domain": "Evaluation",
+        "signal": "后备数据",
+        "relevance": "模型选型、线上监控、质量基准",
+        "timestamp": "本地后备",
+        "url": "https://www.semanticscholar.org/search?q=nlp%20evaluation%20robustness",
+        "provider": "本地后备",
+        "linkLabel": "搜索论文",
+    },
+]
+
+WORLD_RSS_SOURCES = [
+    {"provider": "BBC World", "url": "https://feeds.bbci.co.uk/news/world/rss.xml", "region": "World"},
+    {"provider": "BBC Business", "url": "https://feeds.bbci.co.uk/news/business/rss.xml", "region": "Business"},
+    {"provider": "BBC Technology", "url": "https://feeds.bbci.co.uk/news/technology/rss.xml", "region": "Technology"},
+    {
+        "provider": "BBC Science",
+        "url": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+        "region": "Science",
+    },
+    {"provider": "Guardian World", "url": "https://www.theguardian.com/world/rss", "region": "World"},
+    {"provider": "Guardian Business", "url": "https://www.theguardian.com/business/rss", "region": "Business"},
+    {"provider": "Guardian Tech", "url": "https://www.theguardian.com/uk/technology/rss", "region": "Technology"},
+    {"provider": "NYT World", "url": "https://rss.nytimes.com/services/xml/rss/nyt/World.xml", "region": "World"},
+    {
+        "provider": "NYT Technology",
+        "url": "https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml",
+        "region": "Technology",
+    },
+    {
+        "provider": "Google News Top",
+        "url": "https://news.google.com/rss?hl=en-US&gl=US&ceid=US:en",
+        "region": "Top Stories",
+    },
+]
+
+WORLD_GOOGLE_QUERIES = [
+    ("Geopolitics", '"geopolitics" OR "international relations"'),
+    ("Global Economy", '"global economy" OR inflation OR interest rate'),
+    ("AI Business", '"AI" startup funding OR model release'),
+    ("Energy", '"energy market" OR oil OR gas OR shipping'),
+    ("Cybersecurity", '"cybersecurity" OR "data breach"'),
+]
+
+WORLD_GDELT_QUERIES = [
+    ("Geo", '"geopolitics" OR "international conflict"'),
+    ("Economy", '"global economy" OR "central bank" OR inflation'),
+    ("AI", '"artificial intelligence" OR "AI startup" OR "foundation model"'),
+]
+
+RESEARCH_ARXIV_QUERIES = [
+    ("LLM", 'all:"large language model"'),
+    ("NLP", "cat:cs.CL"),
+    ("Agents", 'all:"llm agent" OR all:"ai agent"'),
+    ("Multimodal", 'all:multimodal OR all:"vision language"'),
+    ("RAG", 'all:retrieval OR all:"retrieval augmented generation"'),
+]
+
+RESEARCH_SEMANTIC_QUERIES = [
+    ("LLM", '"large language model"'),
+    ("NLP", '"natural language processing"'),
+    ("Agents", '"llm agent"'),
+    ("Multimodal", '"multimodal reasoning"'),
 ]
 
 feed_cache: dict[tuple[str, str], dict[str, Any]] = {}
@@ -128,159 +268,451 @@ def get_cached_feed(feed_type: str, keywords: list[str], force_refresh: bool = F
 
 
 def build_world_feed_payload(keywords: list[str]) -> dict[str, Any]:
-    params = {
-        "query": build_world_query(keywords),
-        "mode": "ArtList",
-        "maxrecords": "10",
-        "timespan": "24h",
-        "sort": "datedesc",
-        "format": "json",
-    }
+    sources = build_world_sources(keywords)
+    items, errors = gather_source_items(sources, fetch_world_source, max_workers=8)
+    pool = diversify_and_limit(dedupe_items(items), WORLD_POOL_LIMIT)
 
-    try:
-        payload = fetch_json("https://api.gdeltproject.org/api/v2/doc/doc", params, timeout=8)
-        articles = payload.get("articles") or []
-        items = [map_gdelt_article(article, index) for index, article in enumerate(articles[:6])]
-        items = [item for item in items if item["title"]]
-        if not items:
-            raise ValueError("news source returned no articles")
-        return {
-            "mode": "live",
-            "provider": "GDELT News API",
-            "fetchedAt": utc_now_iso(),
-            "error": None,
-            "items": items,
-        }
-    except (HTTPError, URLError, TimeoutError, ValueError) as error:
-        return {
-            "mode": "fallback",
-            "provider": "本地后备",
-            "fetchedAt": utc_now_iso(),
-            "error": str(error),
-            "items": WORLD_FALLBACK,
-        }
+    if not pool:
+        return fallback_payload("world", errors)
+
+    providers = summarize_providers(pool)
+    return {
+        "mode": "live",
+        "provider": f"{len(providers)} 个资讯源",
+        "providers": providers,
+        "fetchedAt": utc_now_iso(),
+        "error": summarize_errors(errors),
+        "poolSize": len(pool),
+        "batchSize": BATCH_SIZE,
+        "items": pool,
+    }
 
 
 def build_research_feed_payload(keywords: list[str]) -> dict[str, Any]:
-    queries = build_research_queries(keywords)
-    papers: list[dict[str, Any]] = []
-    seen: set[str] = set()
+    sources = build_research_sources(keywords)
+    items, errors = gather_source_items(sources, fetch_research_source, max_workers=6)
+    filtered = [
+        item
+        for item in items
+        if is_ai_nlp_paper(item["title"], item["summary"], item["relevance"], item["domain"])
+    ]
+    pool = diversify_and_limit(dedupe_items(filtered), RESEARCH_POOL_LIMIT)
 
-    try:
-        for index, (label, query) in enumerate(queries):
-            if index:
-                time.sleep(1.05)
+    if not pool:
+        return fallback_payload("research", errors)
 
-            payload = fetch_json(
-                "https://api.semanticscholar.org/graph/v1/paper/search/bulk",
-                {
-                    "query": query,
-                    "fields": (
-                        "title,url,abstract,publicationDate,citationCount,authors,year,venue,openAccessPdf,paperId"
-                    ),
-                    "year": f"{datetime.now().year - 1}-",
-                },
-                timeout=12,
-            )
+    providers = summarize_providers(pool)
+    return {
+        "mode": "live",
+        "provider": f"{len(providers)} 个研究源",
+        "providers": providers,
+        "fetchedAt": utc_now_iso(),
+        "error": summarize_errors(errors),
+        "poolSize": len(pool),
+        "batchSize": BATCH_SIZE,
+        "items": pool,
+    }
 
-            for paper in payload.get("data") or []:
-                mapped = map_semantic_scholar_paper(paper, label)
-                if not mapped["title"]:
-                    continue
-                if not is_ai_nlp_paper(mapped["title"], mapped["summary"], mapped["relevance"], mapped["domain"]):
-                    continue
-                key = mapped["url"] or mapped["title"]
-                if key in seen:
-                    continue
-                seen.add(key)
-                papers.append(mapped)
 
-        papers.sort(
-            key=lambda paper: (
-                paper.get("_sort_date", ""),
-                paper.get("_sort_citations", 0),
-            ),
-            reverse=True,
+def fallback_payload(feed_type: str, errors: list[str]) -> dict[str, Any]:
+    items = WORLD_FALLBACK if feed_type == "world" else RESEARCH_FALLBACK
+    providers = summarize_providers(items)
+    label = "本地后备"
+    return {
+        "mode": "fallback",
+        "provider": label,
+        "providers": providers,
+        "fetchedAt": utc_now_iso(),
+        "error": summarize_errors(errors),
+        "poolSize": len(items),
+        "batchSize": BATCH_SIZE,
+        "items": items,
+    }
+
+
+def build_world_sources(keywords: list[str]) -> list[dict[str, Any]]:
+    sources = [{"kind": "rss", **source} for source in WORLD_RSS_SOURCES]
+
+    for label, query in WORLD_GOOGLE_QUERIES:
+        sources.append(
+            {
+                "kind": "rss",
+                "provider": f"Google News {label}",
+                "url": build_google_news_url(query),
+                "region": label,
+            }
         )
 
-        items = [strip_sort_fields(item) for item in papers[:6]]
-        if not items:
-            raise ValueError("research source returned no papers")
+    for keyword in keywords[:3]:
+        sources.append(
+            {
+                "kind": "rss",
+                "provider": f"Google News {keyword[:20]}",
+                "url": build_google_news_url(quote_phrase(keyword)),
+                "region": "Keyword",
+            }
+        )
 
-        return {
-            "mode": "live",
-            "provider": "Semantic Scholar",
-            "fetchedAt": utc_now_iso(),
-            "error": None,
-            "items": items,
+    for label, query in WORLD_GDELT_QUERIES:
+        sources.append(
+            {
+                "kind": "gdelt",
+                "provider": f"GDELT {label}",
+                "query": build_gdelt_query(query, keywords),
+            }
+        )
+
+    return sources
+
+
+def build_research_sources(keywords: list[str]) -> list[dict[str, Any]]:
+    sources = [{"kind": "arxiv", "provider": f"arXiv {label}", "topic": label, "query": query} for label, query in RESEARCH_ARXIV_QUERIES]
+    sources.extend(
+        {
+            "kind": "semantic",
+            "provider": f"Semantic Scholar {label}",
+            "topic": label,
+            "query": query,
         }
-    except (HTTPError, URLError, TimeoutError, ValueError) as error:
-        return {
-            "mode": "fallback",
-            "provider": "本地后备",
-            "fetchedAt": utc_now_iso(),
-            "error": str(error),
-            "items": RESEARCH_FALLBACK,
-        }
+        for label, query in RESEARCH_SEMANTIC_QUERIES
+    )
+
+    for keyword in keywords[:3]:
+        lowered = keyword.lower()
+        if not any(marker in lowered for marker in ("ai", "llm", "nlp", "agent", "multimodal", "rag", "language")):
+            continue
+        sources.append(
+            {
+                "kind": "arxiv",
+                "provider": f"arXiv {keyword[:18]}",
+                "topic": keyword[:18],
+                "query": f'all:"{keyword}"',
+            }
+        )
+        sources.append(
+            {
+                "kind": "semantic",
+                "provider": f"Semantic Scholar {keyword[:18]}",
+                "topic": keyword[:18],
+                "query": quote_phrase(keyword),
+            }
+        )
+
+    return sources
 
 
-def fetch_json(base_url: str, params: dict[str, str], timeout: int = 12) -> dict[str, Any]:
+def gather_source_items(
+    sources: list[dict[str, Any]],
+    fetcher: Any,
+    max_workers: int,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    items: list[dict[str, Any]] = []
+    errors: list[str] = []
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(fetcher, source): source for source in sources}
+        for future in as_completed(futures):
+            source = futures[future]
+            try:
+                items.extend(future.result())
+            except Exception as error:  # noqa: BLE001
+                errors.append(f"{source['provider']}: {error}")
+
+    return items, errors
+
+
+def fetch_world_source(source: dict[str, Any]) -> list[dict[str, Any]]:
+    if source["kind"] == "rss":
+        xml_text = fetch_text(source["url"], timeout=6)
+        return parse_rss_feed(xml_text, source["provider"], source.get("region", "World"))
+
+    if source["kind"] == "gdelt":
+        payload = fetch_json(
+            "https://api.gdeltproject.org/api/v2/doc/doc",
+            {
+                "query": source["query"],
+                "mode": "ArtList",
+                "maxrecords": "12",
+                "timespan": "36h",
+                "sort": "datedesc",
+                "format": "json",
+            },
+            timeout=8,
+        )
+        articles = payload.get("articles") or []
+        return [map_gdelt_article(article, source["provider"], index) for index, article in enumerate(articles)]
+
+    return []
+
+
+def fetch_research_source(source: dict[str, Any]) -> list[dict[str, Any]]:
+    if source["kind"] == "semantic":
+        payload = fetch_json(
+            "https://api.semanticscholar.org/graph/v1/paper/search/bulk",
+            {
+                "query": source["query"],
+                "fields": "title,url,abstract,publicationDate,citationCount,authors,year,venue,openAccessPdf,paperId",
+                "year": f"{datetime.now().year - 1}-",
+            },
+            timeout=10,
+        )
+        return [map_semantic_scholar_paper(paper, source.get("topic", ""), source["provider"]) for paper in (payload.get("data") or [])[:12]]
+
+    if source["kind"] == "arxiv":
+        xml_text = fetch_text(
+            "https://export.arxiv.org/api/query?" +
+            urlencode(
+                {
+                    "search_query": source["query"],
+                    "start": "0",
+                    "max_results": "12",
+                    "sortBy": "submittedDate",
+                    "sortOrder": "descending",
+                }
+            ),
+            timeout=10,
+        )
+        return parse_arxiv_feed(xml_text, source.get("topic", ""), source["provider"])
+
+    return []
+
+
+def parse_rss_feed(xml_text: str, provider: str, default_region: str) -> list[dict[str, Any]]:
+    root = ET.fromstring(xml_text)
+    items: list[dict[str, Any]] = []
+
+    for index, node in enumerate(root.findall("./channel/item")):
+        title = clean_text(node.findtext("title"))
+        url = clean_text(node.findtext("link"))
+        description = clean_html_text(node.findtext("description"))
+        category = clean_text(node.findtext("category")) or default_region
+        published = format_feed_time(clean_text(node.findtext("pubDate")))
+        sort_ts = parse_feed_timestamp(clean_text(node.findtext("pubDate")))
+
+        if not title or not url:
+            continue
+
+        items.append(
+            {
+                "id": hashed_id(provider, title, url),
+                "title": title,
+                "summary": truncate(description or f"{provider} 的最新资讯条目。", 220),
+                "region": category,
+                "signal": "多源资讯",
+                "relevance": provider,
+                "timestamp": published,
+                "url": url,
+                "provider": provider,
+                "linkLabel": "查看原文",
+                "_sort_ts": sort_ts,
+            }
+        )
+
+        if index >= 11:
+            break
+
+    return items
+
+
+def parse_arxiv_feed(xml_text: str, topic: str, provider: str) -> list[dict[str, Any]]:
+    root = ET.fromstring(xml_text)
+    items: list[dict[str, Any]] = []
+
+    for entry in root.findall("atom:entry", ATOM_NS):
+        title = normalize_space(entry.findtext("atom:title", default="", namespaces=ATOM_NS))
+        summary = normalize_space(entry.findtext("atom:summary", default="", namespaces=ATOM_NS))
+        published_raw = clean_text(entry.findtext("atom:published", default="", namespaces=ATOM_NS))
+        link = ""
+        pdf_link = ""
+
+        for link_node in entry.findall("atom:link", ATOM_NS):
+            href = clean_text(link_node.get("href"))
+            title_attr = clean_text(link_node.get("title"))
+            rel = clean_text(link_node.get("rel"))
+            if title_attr.lower() == "pdf":
+                pdf_link = href
+            if rel == "alternate" and href:
+                link = href
+
+        categories = [clean_text(node.get("term")) for node in entry.findall("atom:category", ATOM_NS) if node.get("term")]
+        authors = ", ".join(
+            normalize_space(author.findtext("atom:name", default="", namespaces=ATOM_NS))
+            for author in entry.findall("atom:author", ATOM_NS)[:3]
+        )
+
+        if not title:
+            continue
+
+        items.append(
+            {
+                "id": hashed_id(provider, title, pdf_link or link),
+                "title": title,
+                "summary": truncate(summary or f"{provider} 的最新论文条目。", 240),
+                "domain": infer_research_domain(title, summary, "Research"),
+                "signal": "arXiv",
+                "relevance": authors or ", ".join(categories[:2]) or provider,
+                "timestamp": format_feed_time(published_raw),
+                "url": pdf_link or link,
+                "provider": provider,
+                "linkLabel": "查看 PDF" if pdf_link else "查看论文",
+                "_sort_ts": parse_feed_timestamp(published_raw),
+            }
+        )
+
+    return items
+
+
+def map_gdelt_article(article: dict[str, Any], provider: str, index: int) -> dict[str, Any]:
+    title = clean_text(article.get("title"))
+    url = clean_text(article.get("url"))
+    domain = clean_text(article.get("domain")) or provider
+    country = clean_text(article.get("sourcecountry")) or "World"
+    language = clean_text(article.get("language")) or "mixed"
+    summary = clean_text(article.get("excerpt")) or f"来自 {domain} 的最新报道，当前语言标记为 {language.upper()}。"
+    seen_date_raw = clean_text(article.get("seendate"))
+
+    return {
+        "id": hashed_id(provider, title, url or str(index)),
+        "title": title,
+        "summary": truncate(summary, 220),
+        "region": country,
+        "signal": "多源资讯",
+        "relevance": domain,
+        "timestamp": format_feed_time(seen_date_raw),
+        "url": url,
+        "provider": provider,
+        "linkLabel": "查看原文" if url else "查看线索",
+        "_sort_ts": parse_feed_timestamp(seen_date_raw),
+    }
+
+
+def map_semantic_scholar_paper(paper: dict[str, Any], topic: str, provider: str) -> dict[str, Any]:
+    title = clean_text(paper.get("title"))
+    abstract = clean_text(paper.get("abstract"))
+    url = clean_text(paper.get("url"))
+    venue = clean_text(paper.get("venue")) or provider
+    publication_date = clean_text(paper.get("publicationDate"))
+    citations = int(paper.get("citationCount") or 0)
+    authors = ", ".join(
+        clean_text(author.get("name")) for author in (paper.get("authors") or [])[:3] if author.get("name")
+    )
+    pdf_link = ""
+    if isinstance(paper.get("openAccessPdf"), dict):
+        pdf_link = clean_text(paper["openAccessPdf"].get("url"))
+
+    summary = abstract or f"{venue} 收录的最新研究条目。"
+    target_link = pdf_link or url
+    return {
+        "id": clean_text(paper.get("paperId")) or hashed_id(provider, title, target_link),
+        "title": title,
+        "summary": truncate(summary, 240),
+        "domain": infer_research_domain(title, summary, "Research"),
+        "signal": f"{citations} citations" if citations else "Semantic Scholar",
+        "relevance": authors or venue,
+        "timestamp": format_feed_time(publication_date or str(paper.get("year") or "")),
+        "url": target_link,
+        "provider": provider,
+        "linkLabel": "查看 PDF" if pdf_link else "查看论文",
+        "_sort_ts": parse_feed_timestamp(publication_date or str(paper.get("year") or "")),
+    }
+
+
+def dedupe_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    deduped: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    for item in sorted(items, key=lambda row: row.get("_sort_ts", 0), reverse=True):
+        normalized = normalize_dedupe_key(item.get("url", ""), item.get("title", ""))
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        deduped.append(item)
+
+    return deduped
+
+
+def diversify_and_limit(items: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for item in sorted(items, key=lambda row: row.get("_sort_ts", 0), reverse=True):
+        groups.setdefault(item["provider"], []).append(item)
+
+    mixed: list[dict[str, Any]] = []
+    providers = list(groups.keys())
+    random.Random(len(items)).shuffle(providers)
+
+    while providers and len(mixed) < limit:
+        next_providers: list[str] = []
+        for provider in providers:
+            bucket = groups.get(provider, [])
+            if bucket:
+                mixed.append(bucket.pop(0))
+            if bucket:
+                next_providers.append(provider)
+            if len(mixed) >= limit:
+                break
+        providers = next_providers
+
+    for item in mixed:
+        item.pop("_sort_ts", None)
+
+    return mixed
+
+
+def build_google_news_url(query: str) -> str:
+    return (
+        "https://news.google.com/rss/search?"
+        + urlencode({"q": query, "hl": "en-US", "gl": "US", "ceid": "US:en"})
+    )
+
+
+def build_gdelt_query(base_query: str, keywords: list[str]) -> str:
+    extras = " OR ".join(quote_phrase(keyword) for keyword in keywords[:2] if keyword)
+    if extras:
+        return f"({base_query} OR {extras})"
+    return f"({base_query})"
+
+
+def fetch_json(base_url: str, params: dict[str, str], timeout: int) -> dict[str, Any]:
     request = Request(
         f"{base_url}?{urlencode(params)}",
-        headers={
-            "User-Agent": "PulseDeck/1.0 (+https://local.app)",
-            "Accept": "application/json",
-        },
+        headers=REQUEST_HEADERS,
     )
     with urlopen(request, timeout=timeout) as response:
         charset = response.headers.get_content_charset() or "utf-8"
         return json.loads(response.read().decode(charset))
 
 
-def build_world_query(keywords: list[str]) -> str:
-    base_terms = [
-        '"geopolitics"',
-        '"global economy"',
-        '"technology policy"',
-        '"energy market"',
-    ]
-    extra_terms = [quote_term(keyword) for keyword in keywords[:2]]
-    return f"({' OR '.join(base_terms + extra_terms)})"
+def fetch_text(url: str, timeout: int) -> str:
+    request = Request(url, headers=REQUEST_HEADERS)
+    with urlopen(request, timeout=timeout) as response:
+        charset = response.headers.get_content_charset() or "utf-8"
+        return response.read().decode(charset, errors="replace")
 
 
-def build_research_queries(keywords: list[str]) -> list[tuple[str, str]]:
-    queries = [
-        ("LLM", '"large language model"'),
-        ("NLP", '"natural language processing"'),
-        ("Agents", '"LLM agent"'),
-        ("Multimodal", '"multimodal learning"'),
-    ]
-    research_markers = {
-        "ai",
-        "agent",
-        "llm",
-        "nlp",
-        "openai",
-        "transformer",
-        "reasoning",
-        "multimodal",
-        "retrieval",
-        "rag",
-        "speech",
-        "vision",
-    }
+def summarize_providers(items: list[dict[str, Any]]) -> list[str]:
+    ordered: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        provider = item.get("provider", "")
+        if provider and provider not in seen:
+            seen.add(provider)
+            ordered.append(provider)
+    return ordered
 
-    for keyword in keywords:
-        lowered = keyword.lower()
-        if not any(marker in lowered for marker in research_markers):
+
+def summarize_errors(errors: list[str]) -> str | None:
+    if not errors:
+        return None
+    unique = []
+    seen = set()
+    for error in errors:
+        if error in seen:
             continue
-        candidate = (keyword[:24], quote_term(keyword))
-        if candidate not in queries:
-            queries.append(candidate)
-        if len(queries) >= 5:
+        seen.add(error)
+        unique.append(error)
+        if len(unique) >= 3:
             break
-
-    return queries
+    return f"{len(seen)} 个来源暂时超时"
 
 
 def is_ai_nlp_paper(title: str, summary: str, relevance: str, domain: str) -> bool:
@@ -300,77 +732,28 @@ def is_ai_nlp_paper(title: str, summary: str, relevance: str, domain: str) -> bo
         "multimodal",
         "agentic",
         "openai",
-        "reasoning model",
+        "reasoning",
         "vision-language",
+        "diffusion",
+        "speech recognition",
+        "fine-tuning",
     ]
-    return any(marker in haystack for marker in markers)
+    blockers = [
+        "multi-agent reinforcement learning",
+        "transportation",
+        "robot manipulator",
+        "wireless sensor",
+        "uav",
+        "power system",
+    ]
+    return any(marker in haystack for marker in markers) and not any(blocker in haystack for blocker in blockers)
 
 
-def map_gdelt_article(article: dict[str, Any], index: int) -> dict[str, str]:
-    title = clean_text(article.get("title"))
-    url = clean_text(article.get("url"))
-    domain = clean_text(article.get("domain")) or "Global News"
-    country = clean_text(article.get("sourcecountry")) or "Global"
-    language = clean_text(article.get("language")) or "mixed"
-    seen_date = format_remote_time(clean_text(article.get("seendate")))
-    summary = clean_text(article.get("excerpt"))
-
-    if not summary:
-        summary = f"来自 {domain} 的最新报道，聚焦 {country} 相关议题，当前语言标记为 {language.upper()}。"
-
-    return {
-        "id": f"world-{index}-{url or title}",
-        "title": title,
-        "summary": truncate(summary, 180),
-        "region": country,
-        "signal": "实时新闻流",
-        "relevance": domain,
-        "timestamp": seen_date or "刚刚更新",
-        "url": url,
-        "provider": "GDELT News API",
-        "linkLabel": "查看报道",
-    }
-
-
-def map_semantic_scholar_paper(paper: dict[str, Any], label: str) -> dict[str, Any]:
-    title = clean_text(paper.get("title"))
-    abstract = clean_text(paper.get("abstract"))
-    url = clean_text(paper.get("url"))
-    venue = clean_text(paper.get("venue")) or "Semantic Scholar"
-    publication_date = clean_text(paper.get("publicationDate"))
-    citations = paper.get("citationCount") or 0
-    authors = ", ".join(
-        clean_text(author.get("name")) for author in (paper.get("authors") or [])[:3] if author.get("name")
-    )
-    pdf = ""
-    if isinstance(paper.get("openAccessPdf"), dict):
-        pdf = clean_text(paper["openAccessPdf"].get("url"))
-
-    if not abstract:
-        abstract = f"{venue} 收录的最新研究条目，方向标签为 {label}。"
-
-    link = pdf or url
-    return {
-        "id": clean_text(paper.get("paperId")) or f"paper-{title}",
-        "title": title,
-        "summary": truncate(abstract, 220),
-        "domain": infer_research_domain(title, abstract, label),
-        "signal": f"{citations} citations" if citations else "recent paper",
-        "relevance": authors or venue,
-        "timestamp": publication_date or str(paper.get("year") or "") or "最新",
-        "url": link,
-        "provider": "Semantic Scholar",
-        "linkLabel": "查看 PDF" if pdf else "查看论文",
-        "_sort_date": publication_date or str(paper.get("year") or ""),
-        "_sort_citations": citations,
-    }
-
-
-def infer_research_domain(title: str, abstract: str, label: str) -> str:
+def infer_research_domain(title: str, abstract: str, fallback: str) -> str:
     haystack = f"{title} {abstract}".lower()
     if "agent" in haystack:
         return "Agents"
-    if "multimodal" in haystack or "vision" in haystack:
+    if "multimodal" in haystack or "vision-language" in haystack or "vision language" in haystack:
         return "Multimodal"
     if "speech" in haystack or "audio" in haystack:
         return "Speech"
@@ -382,11 +765,11 @@ def infer_research_domain(title: str, abstract: str, label: str) -> str:
         return "NLP"
     if "large language model" in haystack or "llm" in haystack:
         return "LLM"
-    return label
+    return fallback
 
 
-def strip_sort_fields(item: dict[str, Any]) -> dict[str, Any]:
-    return {key: value for key, value in item.items() if not key.startswith("_")}
+def quote_phrase(value: str) -> str:
+    return f'"{value.replace(chr(34), "").strip()}"'
 
 
 def normalize_keywords(raw: str) -> list[str]:
@@ -408,9 +791,30 @@ def normalize_keywords(raw: str) -> list[str]:
     return unique
 
 
-@lru_cache(maxsize=64)
-def quote_term(value: str) -> str:
-    return '"' + value.replace('"', "") + '"'
+def normalize_dedupe_key(url: str, title: str) -> str:
+    normalized_title = re.sub(r"\s+", " ", title.strip().lower())
+    normalized_url = url.strip().lower().rstrip("/")
+    return normalized_url or normalized_title
+
+
+def hashed_id(*parts: str) -> str:
+    digest = hashlib.sha1("||".join(parts).encode("utf-8")).hexdigest()
+    return digest
+
+
+def clean_text(value: Any) -> str:
+    return str(value).strip() if value else ""
+
+
+def clean_html_text(value: Any) -> str:
+    text = clean_text(value)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = html.unescape(text)
+    return normalize_space(text)
+
+
+def normalize_space(value: str) -> str:
+    return re.sub(r"\s+", " ", value).strip()
 
 
 def truncate(text: str, limit: int) -> str:
@@ -419,20 +823,29 @@ def truncate(text: str, limit: int) -> str:
     return f"{text[: limit - 1].rstrip()}…"
 
 
-def clean_text(value: Any) -> str:
-    return str(value).strip() if value else ""
-
-
-def format_remote_time(raw_value: str) -> str:
+def parse_feed_timestamp(raw_value: str) -> float:
     if not raw_value:
-        return ""
-    for pattern in ("%Y%m%dT%H%M%SZ", "%Y-%m-%d", "%Y-%m-%dT%H:%M:%S"):
+        return 0.0
+    try:
+        return parsedate_to_datetime(raw_value).timestamp()
+    except Exception:  # noqa: BLE001
+        pass
+    for pattern in ("%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d", "%Y%m%dT%H%M%SZ", "%Y-%m-%dT%H:%M:%S"):
         try:
-            parsed = datetime.strptime(raw_value, pattern)
-            return parsed.strftime("%m/%d %H:%M")
+            return datetime.strptime(raw_value, pattern).replace(tzinfo=timezone.utc).timestamp()
         except ValueError:
             continue
-    return raw_value
+    try:
+        return datetime.fromisoformat(raw_value.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return 0.0
+
+
+def format_feed_time(raw_value: str) -> str:
+    timestamp = parse_feed_timestamp(raw_value)
+    if timestamp <= 0:
+        return "刚刚更新"
+    return datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime("%m/%d %H:%M")
 
 
 def utc_now_iso() -> str:
@@ -441,7 +854,7 @@ def utc_now_iso() -> str:
 
 def run() -> None:
     server = ThreadingHTTPServer((HOST, PORT), PulseDeckHandler)
-    print(f"PulseDeck running at http://{HOST}:{PORT}")
+    print(f"XscNews running at http://{HOST}:{PORT}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -8,8 +8,8 @@
       content="一个暗色科技风的个人情报网页应用，持续追踪全球热点与 AI/NLP 前沿。"
     />
     <meta name="theme-color" content="#060816" />
-    <link rel="manifest" href="./manifest.webmanifest?v=3" />
-    <link rel="stylesheet" href="./styles.css?v=3" />
+    <link rel="manifest" href="./manifest.webmanifest?v=4" />
+    <link rel="stylesheet" href="./styles.css?v=4" />
     <title>XscNews</title>
   </head>
   <body>
@@ -146,7 +146,10 @@
                 <p class="panel-kicker">GLOBAL</p>
                 <h2>世界热点</h2>
               </div>
-              <button id="refreshWorldBtn" class="icon-button">刷新</button>
+              <div class="panel-heading-actions">
+                <button id="nextWorldBtn" class="icon-button">换一批</button>
+                <button id="refreshWorldBtn" class="icon-button">刷新源</button>
+              </div>
             </div>
             <div id="worldFeed" class="feed-list"></div>
           </article>
@@ -157,7 +160,10 @@
                 <p class="panel-kicker">RESEARCH</p>
                 <h2>AI / NLP 前沿</h2>
               </div>
-              <button id="refreshResearchBtn" class="icon-button">刷新</button>
+              <div class="panel-heading-actions">
+                <button id="nextResearchBtn" class="icon-button">换一批</button>
+                <button id="refreshResearchBtn" class="icon-button">刷新源</button>
+              </div>
             </div>
             <div id="researchFeed" class="feed-list"></div>
           </article>
@@ -177,6 +183,6 @@
       </main>
     </div>
 
-    <script type="module" src="./app.js?v=3"></script>
+    <script type="module" src="./app.js?v=4"></script>
   </body>
 </html>

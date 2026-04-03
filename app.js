@@ -8,11 +8,20 @@ const DEFAULT_SETTINGS = {
   researchInterval: 240,
   keywords: "OpenAI, agent, LLM, NLP, geopolitics, startup",
 };
+const DEFAULT_BATCH_SIZE = 6;
 
 const state = {
   settings: loadSettings(),
   worldItems: [],
   researchItems: [],
+  pools: {
+    world: [],
+    research: [],
+  },
+  seenIds: {
+    world: new Set(),
+    research: new Set(),
+  },
   timers: {
     world: null,
     research: null,
@@ -24,6 +33,10 @@ const state = {
   loading: {
     world: false,
     research: false,
+  },
+  batchSize: {
+    world: DEFAULT_BATCH_SIZE,
+    research: DEFAULT_BATCH_SIZE,
   },
   sourceMeta: {
     world: fallbackMeta("本地后备"),
@@ -42,6 +55,8 @@ const elements = {
   pauseAllBtn: document.querySelector("#pauseAllBtn"),
   refreshWorldBtn: document.querySelector("#refreshWorldBtn"),
   refreshResearchBtn: document.querySelector("#refreshResearchBtn"),
+  nextWorldBtn: document.querySelector("#nextWorldBtn"),
+  nextResearchBtn: document.querySelector("#nextResearchBtn"),
   worldToggle: document.querySelector("#worldToggle"),
   researchToggle: document.querySelector("#researchToggle"),
   worldInterval: document.querySelector("#worldInterval"),
@@ -80,6 +95,8 @@ function fallbackMeta(provider) {
     provider,
     fetchedAt: null,
     error: null,
+    poolSize: DEFAULT_BATCH_SIZE,
+    providers: [provider],
   };
 }
 
@@ -114,16 +131,32 @@ function bindEvents() {
   elements.refreshResearchBtn.addEventListener("click", () =>
     refreshStream("research", { manual: true }),
   );
+  elements.nextWorldBtn.addEventListener("click", () => nextBatch("world", { manual: true }));
+  elements.nextResearchBtn.addEventListener("click", () => nextBatch("research", { manual: true }));
 }
 
 function seedFallbackFeeds() {
-  state.worldItems = buildFallbackItems("world");
-  state.researchItems = buildFallbackItems("research");
+  const worldPool = buildFallbackItems("world");
+  const researchPool = buildFallbackItems("research");
+  state.pools.world = worldPool;
+  state.pools.research = researchPool;
+  state.sourceMeta.world = {
+    ...fallbackMeta("本地后备"),
+    poolSize: worldPool.length,
+    providers: ["本地后备"],
+  };
+  state.sourceMeta.research = {
+    ...fallbackMeta("本地后备"),
+    poolSize: researchPool.length,
+    providers: ["本地后备"],
+  };
+  nextBatch("world", { resetSeen: true });
+  nextBatch("research", { resetSeen: true });
 }
 
 function buildFallbackItems(type) {
   const source = type === "world" ? worldHotTopics : researchHotTopics;
-  return source.slice(0, 6).map((item, index) => ({
+  return source.map((item, index) => ({
     id: `fallback-${type}-${index}`,
     title: item.title,
     summary: item.summary,
@@ -141,10 +174,9 @@ async function refreshStream(type, { manual = false } = {}) {
   if (state.loading[type]) return;
 
   state.loading[type] = true;
-  updateRefreshButtonState(type);
+  updateButtonState(type);
   renderFeed(type);
 
-  const previousTopId = state[`${type}Items`][0]?.id;
   const endpoint = `/api/${type}?keywords=${encodeURIComponent(state.settings.keywords)}${
     manual ? `&force=1&_ts=${Date.now()}` : ""
   }`;
@@ -156,23 +188,32 @@ async function refreshStream(type, { manual = false } = {}) {
     }
 
     const payload = await response.json();
-    const items = normalizeItems(type, payload.items);
-    state[`${type}Items`] = items.length ? items : buildFallbackItems(type);
+    const pool = normalizeItems(type, payload.items);
+
+    if (pool.length) {
+      state.pools[type] = pool;
+      state.batchSize[type] = payload.batchSize || DEFAULT_BATCH_SIZE;
+      state.seenIds[type].clear();
+      nextBatch(type, { resetSeen: true });
+    }
+
     state.sourceMeta[type] = {
       mode: payload.mode || "live",
       provider: payload.provider || "实时源",
       fetchedAt: payload.fetchedAt || new Date().toISOString(),
       error: payload.error || null,
+      poolSize: payload.poolSize || pool.length,
+      providers: payload.providers || [payload.provider || "实时源"],
     };
 
     const currentTop = state[`${type}Items`][0];
     if (
-      previousTopId &&
       currentTop &&
-      currentTop.id !== previousTopId &&
       state.settings[`${type}Enabled`] &&
       "Notification" in window &&
-      Notification.permission === "granted"
+      Notification.permission === "granted" &&
+      state.latestNotifiedId[type] !== currentTop.id &&
+      !manual
     ) {
       maybeNotify(type, currentTop);
     }
@@ -182,43 +223,71 @@ async function refreshStream(type, { manual = false } = {}) {
 
     if (manual) {
       showToastCard(
-        type === "world" ? "世界热点已更新" : "AI / NLP 前沿已更新",
-        `${state.sourceMeta[type].provider} 已返回最新数据。`,
+        type === "world" ? "世界热点资源池已刷新" : "AI / NLP 资源池已刷新",
+        `${state.sourceMeta[type].provider} · ${state.sourceMeta[type].poolSize} 条内容`,
       );
     }
   } catch (error) {
-    state[`${type}Items`] = buildFallbackItems(type);
+    if (!state.pools[type].length) {
+      state.pools[type] = buildFallbackItems(type);
+      state.seenIds[type].clear();
+      nextBatch(type, { resetSeen: true });
+    }
+
     state.sourceMeta[type] = {
-      mode: "fallback",
-      provider: "本地后备",
+      mode: state.pools[type].length ? "fallback" : "fallback",
+      provider: state.pools[type].length ? "沿用当前内容池" : "本地后备",
       fetchedAt: new Date().toISOString(),
       error: error.message,
+      poolSize: state.pools[type].length,
+      providers: [state.pools[type].length ? "当前资源池" : "本地后备"],
     };
     scheduleNextRun(type);
 
     if (manual) {
       showToastCard(
         "实时源暂不可用",
-        `${type === "world" ? "新闻流" : "论文流"} 已切回本地后备数据。`,
+        `${type === "world" ? "新闻池" : "研究池"} 保留当前内容，你仍然可以点“换一批”。`,
       );
     }
   } finally {
     state.loading[type] = false;
-    updateRefreshButtonState(type);
+    updateButtonState(type);
     renderFeed(type);
     renderMetrics();
   }
 }
 
-function updateRefreshButtonState(type) {
-  const button = type === "world" ? elements.refreshWorldBtn : elements.refreshResearchBtn;
-  if (!button) return;
-  button.disabled = state.loading[type];
-  button.textContent = state.loading[type] ? "刷新中..." : "刷新";
+function nextBatch(type, { resetSeen = false, manual = false } = {}) {
+  const pool = state.pools[type];
+  if (!pool.length) return;
+
+  if (resetSeen) {
+    state.seenIds[type].clear();
+  }
+
+  let candidates = pool.filter((item) => !state.seenIds[type].has(item.id));
+  if (!candidates.length) {
+    state.seenIds[type].clear();
+    candidates = [...pool];
+  }
+
+  const batch = candidates.slice(0, state.batchSize[type] || DEFAULT_BATCH_SIZE);
+  batch.forEach((item) => state.seenIds[type].add(item.id));
+  state[`${type}Items`] = batch;
+  renderFeed(type);
+  renderMetrics();
+
+  if (manual) {
+    showToastCard(
+      type === "world" ? "世界热点已换一批" : "研究内容已换一批",
+      `当前内容池还有 ${Math.max(pool.length - state.seenIds[type].size, 0)} 条未看过的内容。`,
+    );
+  }
 }
 
 function normalizeItems(type, items = []) {
-  return items.slice(0, 6).map((item, index) => ({
+  return items.map((item, index) => ({
     id: item.id || `${type}-${index}-${item.title || "entry"}`,
     title: item.title || "未命名条目",
     summary: item.summary || "暂无摘要。",
@@ -264,7 +333,7 @@ function renderFeed(type) {
   const regionLabel = type === "world" ? "影响面" : "落地方向";
 
   if (state.loading[type] && !items.length) {
-    container.innerHTML = '<div class="empty-state">正在连接真实数据源...</div>';
+    container.innerHTML = '<div class="empty-state">正在构建多源内容池...</div>';
     return;
   }
 
@@ -275,7 +344,7 @@ function renderFeed(type) {
 
   container.innerHTML = `
     <div class="feed-status ${meta.mode === "live" ? "live" : "fallback"}">
-      <span>${meta.mode === "live" ? "实时源在线" : "本地后备模式"}</span>
+      <span>${meta.mode === "live" ? "多源资源池在线" : "后备模式"}</span>
       <span>${escapeHtml(buildSourceLine(meta))}</span>
     </div>
     ${items
@@ -294,11 +363,7 @@ function renderFeed(type) {
             </div>
             <div class="feed-footer">
               <span class="muted">${escapeHtml(provider)}</span>
-              ${
-                url
-                  ? `<a class="feed-link" href="${escapeAttribute(url)}" target="_blank" rel="noreferrer">${escapeHtml(linkLabel)}</a>`
-                  : ""
-              }
+              <a class="feed-link" href="${escapeAttribute(url)}" target="_blank" rel="noreferrer">${escapeHtml(linkLabel)}</a>
             </div>
           </article>
         `,
@@ -308,8 +373,10 @@ function renderFeed(type) {
 }
 
 function renderMetrics() {
-  elements.worldCount.textContent = String(state.worldItems.length);
-  elements.researchCount.textContent = String(state.researchItems.length);
+  elements.worldCount.textContent = String(state.sourceMeta.world.poolSize || state.pools.world.length);
+  elements.researchCount.textContent = String(
+    state.sourceMeta.research.poolSize || state.pools.research.length,
+  );
   elements.worldNextRun.textContent = formatNextRunText(state.nextRuns.world, state.settings.worldEnabled);
   elements.researchNextRun.textContent = formatNextRunText(
     state.nextRuns.research,
@@ -319,8 +386,8 @@ function renderMetrics() {
   const liveCount = [state.sourceMeta.world, state.sourceMeta.research].filter(
     (entry) => entry.mode === "live",
   ).length;
-  elements.systemMode.textContent = liveCount === 2 ? "真实源在线" : "混合模式";
-  elements.dataModeBadge.textContent = liveCount === 2 ? "LIVE SOURCES" : "LIVE + FALLBACK";
+  elements.systemMode.textContent = liveCount === 2 ? "内容池轮换" : "混合模式";
+  elements.dataModeBadge.textContent = liveCount === 2 ? "MULTI-SOURCE LIVE" : "LIVE + FALLBACK";
   elements.sourceSummary.textContent = [
     `热点: ${buildSourceLine(state.sourceMeta.world)}`,
     `研究: ${buildSourceLine(state.sourceMeta.research)}`,
@@ -330,7 +397,10 @@ function renderMetrics() {
 function buildSourceLine(meta) {
   const provider = meta.provider || "未知来源";
   const fetched = meta.fetchedAt ? formatTime(new Date(meta.fetchedAt)) : "尚未拉取";
-  return meta.error ? `${provider} · ${fetched} · ${meta.error}` : `${provider} · ${fetched}`;
+  const poolSize = meta.poolSize ? `${meta.poolSize} 条` : "0 条";
+  const providers = Array.isArray(meta.providers) ? meta.providers.slice(0, 3).join(" / ") : provider;
+  const error = meta.error ? ` · ${meta.error}` : "";
+  return `${provider} · ${poolSize} · ${fetched} · ${providers}${error}`;
 }
 
 function handleSaveSettings() {
@@ -400,18 +470,29 @@ function scheduleNextRun(type) {
   state.nextRuns[type] = new Date(Date.now() + minutesToMs(minutes));
 }
 
+function updateButtonState(type) {
+  const refreshButton = type === "world" ? elements.refreshWorldBtn : elements.refreshResearchBtn;
+  const nextButton = type === "world" ? elements.nextWorldBtn : elements.nextResearchBtn;
+
+  if (refreshButton) {
+    refreshButton.disabled = state.loading[type];
+    refreshButton.textContent = state.loading[type] ? "刷新中..." : "刷新源";
+  }
+
+  if (nextButton) {
+    nextButton.disabled = state.loading[type] || !state.pools[type].length;
+    nextButton.textContent = "换一批";
+  }
+}
+
 function maybeNotify(type, item) {
   if (!("Notification" in window) || Notification.permission !== "granted") {
     return;
   }
-  if (state.latestNotifiedId[type] === item.id) {
-    return;
-  }
 
-  const title = type === "world" ? "全球热点更新" : "AI / NLP 前沿更新";
-  new Notification(title, {
+  new Notification(type === "world" ? "全球热点更新" : "AI / NLP 前沿更新", {
     body: `${item.title} | ${item.summary}`,
-    tag: `pulse-deck-${type}`,
+    tag: `xscnews-${type}`,
     silent: false,
   });
 }
