@@ -457,6 +457,8 @@ function buildFallbackItems(type) {
             : item.category,
     signal: item.signal,
     relevance: item.relevance || item.artist || "",
+    artist: item.artist || "",
+    artwork: item.artwork || "",
   }));
 }
 
@@ -595,6 +597,8 @@ function normalizeItems(type, items = []) {
             : item.category || item.region || "Entertainment",
     signal: item.signal || defaultSignal(type),
     relevance: item.relevance || item.artist || "",
+    artist: item.artist || "",
+    artwork: item.artwork || "",
   }));
 }
 
@@ -1000,7 +1004,7 @@ function buildRecommendationReason(type, item) {
 
   if (state.desk.saved[key]) reasons.push("已加入你的收藏夹");
   if (state.desk.later[key]) reasons.push("已进入稍后看");
-  if (state.profile.streamWeights[type] > 4) reasons.push(`你最近偏爱${streamTitle(type)}`);
+  if (state.profile.streamWeights[type] > 10) reasons.push(`你最近偏爱${streamTitle(type)}`);
 
   const keywordHit = focusTerms.find((term) => text.includes(term.toLowerCase()));
   if (keywordHit) {
@@ -1008,7 +1012,7 @@ function buildRecommendationReason(type, item) {
   }
 
   const affinity = getProfileAffinity(type, item);
-  if (!keywordHit && affinity.matchedSignals.length) {
+  if (!keywordHit && affinity.matchedSignals.length && affinity.matchedSignals[0].weight >= 2.4) {
     reasons.push(
       `和你常看的 ${affinity.matchedSignals
         .slice(0, 2)
@@ -1017,11 +1021,7 @@ function buildRecommendationReason(type, item) {
     );
   }
 
-  if (!reasons.length && !(item.signal || "").includes("后备")) {
-    reasons.push("实时池中优先级较高");
-  }
-
-  return reasons[0] || "适合继续关注";
+  return reasons[0] || "";
 }
 
 function buildCoverLabel(type) {
@@ -1049,8 +1049,22 @@ function buildFeedCoverMarkup(type, item, index) {
   const recommendation = buildRecommendationReason(type, item);
   const coverToken = buildCoverToken(type, item);
   const coverCaption = buildCoverCaption(type, item);
+  const artworkMarkup =
+    type === "music" && item.artwork
+      ? `
+      <img
+        class="feed-cover-art"
+        src="${escapeAttribute(item.artwork)}"
+        alt="${escapeAttribute(`${item.title} cover`)}"
+        loading="lazy"
+        referrerpolicy="no-referrer"
+      />
+      <div class="feed-cover-art-overlay"></div>
+    `
+      : "";
   return `
-    <div class="feed-cover feed-cover-${type}${index === 0 ? " is-featured" : ""}">
+    <div class="feed-cover feed-cover-${type}${index === 0 ? " is-featured" : ""}${artworkMarkup ? " has-artwork" : ""}">
+      ${artworkMarkup}
       <div class="feed-cover-top">
         <span class="feed-cover-label">${escapeHtml(buildCoverLabel(type))}</span>
         <span class="feed-cover-provider">${escapeHtml(item.provider || streamTitle(type))}</span>
@@ -1105,6 +1119,31 @@ function renderFeed(type) {
   const itemClass = `feed-item feed-item-${type}`;
   const linkClass = `feed-link feed-link-${type}`;
   const regionTagClass = `tag stream-chip stream-chip-${type}`;
+  const reasonEntries = items.map((item, index) => {
+    const reason = buildRecommendationReason(type, item);
+    return { id: item.id, index, reason };
+  });
+  const reasonCounts = new Map();
+  reasonEntries.forEach(({ reason }) => {
+    if (!reason) return;
+    reasonCounts.set(reason, (reasonCounts.get(reason) || 0) + 1);
+  });
+  const visibleReasons = new Map(
+    reasonEntries.map(({ id, index, reason }) => {
+      if (!reason) return [id, ""];
+      const itemKey = buildDeskKey(type, id);
+      const isExplicit =
+        Boolean(state.desk.saved[itemKey]) ||
+        Boolean(state.desk.later[itemKey]) ||
+        reason.includes("关键词") ||
+        reason.includes("收藏夹") ||
+        reason.includes("稍后看");
+      if (!isExplicit && (reasonCounts.get(reason) || 0) > 1 && index > 0) {
+        return [id, ""];
+      }
+      return [id, reason];
+    }),
+  );
 
   if (state.loading[type] && !items.length) {
     container.innerHTML = '<div class="empty-state">正在构建多源内容池...</div>';
@@ -1131,7 +1170,7 @@ function renderFeed(type) {
           const heat = buildHeatState(type, index, meta);
           const savedActive = Boolean(state.desk.saved[buildDeskKey(type, itemId)]);
           const laterActive = Boolean(state.desk.later[buildDeskKey(type, itemId)]);
-          const recommendation = buildRecommendationReason(type, item);
+          const recommendation = visibleReasons.get(itemId) || "";
           return `
           <article class="${itemClass}${index === 0 ? " featured" : ""}">
             ${buildFeedCoverMarkup(type, item, index)}
@@ -1149,10 +1188,14 @@ function renderFeed(type) {
               <span class="tag ${signalClass}">${escapeHtml(signal)}</span>
               <span>${regionLabel}: ${escapeHtml(relevance || provider)}</span>
             </div>
-            <div class="feed-reason">
+            ${
+              recommendation
+                ? `<div class="feed-reason">
               <span class="feed-reason-label">推荐理由</span>
               <span class="feed-reason-text">${escapeHtml(recommendation)}</span>
-            </div>
+            </div>`
+                : ""
+            }
             <div class="feed-footer">
               <span class="muted">${escapeHtml(provider)}</span>
               <a class="${linkClass}" href="${escapeAttribute(url)}" target="_blank" rel="noreferrer" data-track-link="1" data-type="${type}" data-item-id="${escapeAttribute(itemId)}">${escapeHtml(linkLabel)}</a>
@@ -1696,8 +1739,8 @@ function buildDigestCard(type, items, insightLabel) {
   const lead = visibleItems[0];
   const follow = visibleItems[1];
   const meta = state.sourceMeta[type];
-  const leadReason = lead ? buildRecommendationReason(type, lead) : "等待下一次轮换";
-  const followReason = follow ? buildRecommendationReason(type, follow) : "暂无补充内容";
+  const leadReason = lead ? buildRecommendationReason(type, lead) || "当前流里的高关注条目" : "等待下一次轮换";
+  const followReason = follow ? buildRecommendationReason(type, follow) || "继续观察这一流的后续线索" : "暂无补充内容";
 
   return `
     <article class="digest-card stream-${type}">

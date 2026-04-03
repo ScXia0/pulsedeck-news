@@ -25,6 +25,7 @@ BASE_DIR = Path(__file__).resolve().parent
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "8000"))
 CACHE_TTL_SECONDS = 20 * 60
+MUSIC_ART_TTL_SECONDS = 7 * 24 * 60 * 60
 WORLD_POOL_LIMIT = 48
 RESEARCH_POOL_LIMIT = 42
 MUSIC_POOL_LIMIT = 54
@@ -438,6 +439,7 @@ ENTERTAINMENT_GOOGLE_QUERIES = [
 ]
 
 feed_cache: dict[tuple[str, str], dict[str, Any]] = {}
+music_art_cache: dict[str, dict[str, Any]] = {}
 
 
 class PulseDeckHandler(SimpleHTTPRequestHandler):
@@ -558,6 +560,8 @@ def build_music_feed_payload() -> dict[str, Any]:
     if not pool:
         return fallback_payload("music", errors)
 
+    pool = enrich_music_items_with_artwork(pool)
+
     providers = summarize_providers(pool)
     return {
         "mode": "live",
@@ -593,7 +597,7 @@ def build_entertainment_feed_payload(keywords: list[str]) -> dict[str, Any]:
 
 
 def fallback_payload(feed_type: str, errors: list[str]) -> dict[str, Any]:
-    items = (
+    base_items = (
         WORLD_FALLBACK
         if feed_type == "world"
         else RESEARCH_FALLBACK
@@ -602,6 +606,7 @@ def fallback_payload(feed_type: str, errors: list[str]) -> dict[str, Any]:
         if feed_type == "music"
         else ENTERTAINMENT_FALLBACK
     )
+    items = enrich_music_items_with_artwork(base_items) if feed_type == "music" else [dict(item) for item in base_items]
     providers = summarize_providers(items)
     label = "本地后备"
     return {
@@ -1059,6 +1064,57 @@ def build_music_search_url(title: str, artist: str) -> str:
     return "https://www.youtube.com/results?" + urlencode({"search_query": query})
 
 
+def enrich_music_items_with_artwork(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    enriched = [dict(item) for item in items]
+
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        futures = {
+            executor.submit(resolve_music_artwork, item): index
+            for index, item in enumerate(enriched)
+        }
+        for future in as_completed(futures):
+            index = futures[future]
+            try:
+                artwork = future.result()
+            except Exception:  # noqa: BLE001
+                artwork = ""
+            if artwork:
+                enriched[index]["artwork"] = artwork
+
+    return enriched
+
+
+def resolve_music_artwork(item: dict[str, Any]) -> str:
+    title = clean_text(item.get("title"))
+    artist = clean_text(item.get("artist") or item.get("relevance"))
+    if not title:
+        return ""
+
+    cache_key = normalize_signal_key(f"{title}::{artist}")
+    cached = music_art_cache.get(cache_key)
+    now = time.time()
+    if cached and now - cached["stored_at"] < MUSIC_ART_TTL_SECONDS:
+        return cached.get("artwork", "")
+
+    payload = fetch_json(
+        "https://itunes.apple.com/search",
+        {
+            "term": f"{title} {artist}".strip(),
+            "entity": "song",
+            "limit": "1",
+            "country": "US",
+        },
+        timeout=6,
+    )
+    result = (payload.get("results") or [{}])[0]
+    artwork = clean_text(result.get("artworkUrl100")) or clean_text(result.get("artworkUrl60"))
+    if artwork:
+        artwork = artwork.replace("100x100bb", "600x600bb").replace("60x60bb", "600x600bb")
+
+    music_art_cache[cache_key] = {"stored_at": now, "artwork": artwork}
+    return artwork
+
+
 def build_gdelt_query(base_query: str, keywords: list[str]) -> str:
     extras = " OR ".join(quote_phrase(keyword) for keyword in keywords[:2] if keyword)
     if extras:
@@ -1218,6 +1274,10 @@ def clean_html_text(value: Any) -> str:
 
 def normalize_space(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
+
+
+def normalize_signal_key(value: str) -> str:
+    return normalize_space(value).lower()[:96]
 
 
 def truncate(text: str, limit: int) -> str:
