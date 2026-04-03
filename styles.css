@@ -1292,6 +1292,8 @@ button:disabled {
 
 .control-panel .panel-actions {
   gap: 10px;
+  margin-top: 14px;
+  align-items: center;
 }
 
 .setting-card {
@@ -1302,6 +1304,10 @@ button:disabled {
 
 .setting-card.full-span {
   grid-column: 1 / -1;
+  padding: 16px 18px;
+  background:
+    linear-gradient(180deg, rgba(16, 23, 50, 0.88), rgba(8, 12, 28, 0.96)),
+    var(--panel-strong);
 }
 
 .setting-card::before {
@@ -1355,6 +1361,10 @@ button:disabled {
   gap: 8px;
 }
 
+.setting-card.full-span .field {
+  gap: 7px;
+}
+
 .field span {
   font-size: 0.88rem;
 }
@@ -1367,6 +1377,36 @@ button:disabled {
   color: var(--text);
   padding: 11px 13px;
   outline: none;
+}
+
+.setting-card.full-span .field input {
+  min-height: 50px;
+  padding: 10px 16px;
+  border-radius: 16px;
+  font-size: 0.98rem;
+}
+
+.setting-card.full-span .setting-head {
+  margin-bottom: 12px;
+}
+
+.setting-card.full-span .setting-head h3 {
+  margin-bottom: 6px;
+}
+
+.setting-card.full-span .setting-head p {
+  font-size: 0.9rem;
+  line-height: 1.52;
+}
+
+.control-panel .panel-actions .primary-button,
+.control-panel .panel-actions .ghost-button {
+  padding: 10px 16px;
+  font-size: 0.96rem;
+}
+
+.control-panel .panel-actions .primary-button {
+  box-shadow: 0 12px 24px rgba(66, 182, 255, 0.18);
 }
 
 .field input:focus {
