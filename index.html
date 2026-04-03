@@ -8,8 +8,8 @@
       content="一个暗色科技风的个人情报网页应用，持续追踪全球热点、AI/NLP 前沿、近期热门歌曲与娱乐新闻。"
     />
     <meta name="theme-color" content="#060816" />
-    <link rel="manifest" href="./manifest.webmanifest?v=6" />
-    <link rel="stylesheet" href="./styles.css?v=6" />
+    <link rel="manifest" href="./manifest.webmanifest?v=7" />
+    <link rel="stylesheet" href="./styles.css?v=7" />
     <title>XscNews</title>
   </head>
   <body>
@@ -24,6 +24,12 @@
           <p class="hero-text">
             每天追踪全球热点、AI / NLP 前沿、近期热门歌曲和娱乐新闻，把重要信息压缩成持续推送的个人情报流。
           </p>
+          <div class="hero-streams">
+            <span class="hero-stream stream-world">Global Radar</span>
+            <span class="hero-stream stream-research">AI Research</span>
+            <span class="hero-stream stream-music">Music Heat</span>
+            <span class="hero-stream stream-entertainment">Entertainment Buzz</span>
+          </div>
 
           <div class="hero-actions">
             <button id="notifyPermissionBtn" class="primary-button">
@@ -33,39 +39,48 @@
               立即生成今日摘要
             </button>
           </div>
+          <p class="hero-footnote">四条内容流并行运行，支持多源抓取、换一批与浏览器提醒。</p>
         </div>
 
         <div class="hero-panel">
-          <div class="hero-grid">
-            <div class="metric-card">
-              <span class="metric-label">全球热点流</span>
-              <strong id="worldCount">0</strong>
-              <span id="worldNextRun" class="metric-subtle">等待启动</span>
+          <div class="hero-panel-shell">
+            <div class="hero-panel-intro">
+              <p class="panel-kicker">LIVE MATRIX</p>
+              <p class="hero-panel-text">
+                把世界、研究、音乐和娱乐压进同一个可持续刷新的情报界面。
+              </p>
             </div>
-            <div class="metric-card">
-              <span class="metric-label">AI / NLP 流</span>
-              <strong id="researchCount">0</strong>
-              <span id="researchNextRun" class="metric-subtle">等待启动</span>
-            </div>
-            <div class="metric-card">
-              <span class="metric-label">热歌流</span>
-              <strong id="musicCount">0</strong>
-              <span id="musicNextRun" class="metric-subtle">等待启动</span>
-            </div>
-            <div class="metric-card">
-              <span class="metric-label">娱乐流</span>
-              <strong id="entertainmentCount">0</strong>
-              <span id="entertainmentNextRun" class="metric-subtle">等待启动</span>
-            </div>
-            <div class="metric-card">
-              <span class="metric-label">推送状态</span>
-              <strong id="notificationState">未授权</strong>
-              <span id="lastDigestTime" class="metric-subtle">尚未推送</span>
-            </div>
-            <div class="metric-card">
-              <span class="metric-label">信息节奏</span>
-              <strong id="systemMode">智能轮询</strong>
-              <span class="metric-subtle">浏览器内持续运行</span>
+            <div class="hero-grid">
+              <div class="metric-card stream-world">
+                <span class="metric-label">全球热点流</span>
+                <strong id="worldCount">0</strong>
+                <span id="worldNextRun" class="metric-subtle">等待启动</span>
+              </div>
+              <div class="metric-card stream-research">
+                <span class="metric-label">AI / NLP 流</span>
+                <strong id="researchCount">0</strong>
+                <span id="researchNextRun" class="metric-subtle">等待启动</span>
+              </div>
+              <div class="metric-card stream-music">
+                <span class="metric-label">热歌流</span>
+                <strong id="musicCount">0</strong>
+                <span id="musicNextRun" class="metric-subtle">等待启动</span>
+              </div>
+              <div class="metric-card stream-entertainment">
+                <span class="metric-label">娱乐流</span>
+                <strong id="entertainmentCount">0</strong>
+                <span id="entertainmentNextRun" class="metric-subtle">等待启动</span>
+              </div>
+              <div class="metric-card stream-neutral">
+                <span class="metric-label">推送状态</span>
+                <strong id="notificationState">未授权</strong>
+                <span id="lastDigestTime" class="metric-subtle">尚未推送</span>
+              </div>
+              <div class="metric-card stream-neutral">
+                <span class="metric-label">信息节奏</span>
+                <strong id="systemMode">智能轮询</strong>
+                <span class="metric-subtle">浏览器内持续运行</span>
+              </div>
             </div>
           </div>
         </div>
@@ -184,7 +199,7 @@
         </section>
 
         <section class="feeds-grid">
-          <article class="panel feed-panel">
+          <article class="panel feed-panel stream-world">
             <div class="panel-heading">
               <div>
                 <p class="panel-kicker">GLOBAL</p>
@@ -198,7 +213,7 @@
             <div id="worldFeed" class="feed-list"></div>
           </article>
 
-          <article class="panel feed-panel">
+          <article class="panel feed-panel stream-research">
             <div class="panel-heading">
               <div>
                 <p class="panel-kicker">RESEARCH</p>
@@ -212,7 +227,7 @@
             <div id="researchFeed" class="feed-list"></div>
           </article>
 
-          <article class="panel feed-panel">
+          <article class="panel feed-panel stream-music">
             <div class="panel-heading">
               <div>
                 <p class="panel-kicker">MUSIC</p>
@@ -226,7 +241,7 @@
             <div id="musicFeed" class="feed-list"></div>
           </article>
 
-          <article class="panel feed-panel">
+          <article class="panel feed-panel stream-entertainment">
             <div class="panel-heading">
               <div>
                 <p class="panel-kicker">ENTERTAINMENT</p>
@@ -255,6 +270,6 @@
       </main>
     </div>
 
-    <script type="module" src="./app.js?v=6"></script>
+    <script type="module" src="./app.js?v=7"></script>
   </body>
 </html>

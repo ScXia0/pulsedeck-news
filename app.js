@@ -430,6 +430,9 @@ function renderFeed(type) {
         : type === "music"
           ? "music"
           : "entertainment";
+  const itemClass = `feed-item feed-item-${type}`;
+  const linkClass = `feed-link feed-link-${type}`;
+  const regionTagClass = `tag stream-chip stream-chip-${type}`;
 
   if (state.loading[type] && !items.length) {
     container.innerHTML = '<div class="empty-state">正在构建多源内容池...</div>';
@@ -449,9 +452,9 @@ function renderFeed(type) {
     ${items
       .map(
         ({ title, summary, region, signal, relevance, timestamp, url, provider, linkLabel }) => `
-          <article class="feed-item">
+          <article class="${itemClass}">
             <div class="feed-item-header">
-              <span class="tag">${escapeHtml(region)}</span>
+              <span class="${regionTagClass}">${escapeHtml(region)}</span>
               <span class="muted">${escapeHtml(timestamp)}</span>
             </div>
             <h3>${escapeHtml(title)}</h3>
@@ -462,7 +465,7 @@ function renderFeed(type) {
             </div>
             <div class="feed-footer">
               <span class="muted">${escapeHtml(provider)}</span>
-              <a class="feed-link" href="${escapeAttribute(url)}" target="_blank" rel="noreferrer">${escapeHtml(linkLabel)}</a>
+              <a class="${linkClass}" href="${escapeAttribute(url)}" target="_blank" rel="noreferrer">${escapeHtml(linkLabel)}</a>
             </div>
           </article>
         `,
