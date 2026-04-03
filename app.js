@@ -8,6 +8,7 @@ import {
 
 const STORAGE_KEY = "pulse-deck-settings";
 const DESK_STORAGE_KEY = "xscnews-desk-state";
+const VIEW_STORAGE_KEY = "xscnews-view-state";
 const DEFAULT_SETTINGS = {
   worldEnabled: true,
   worldInterval: 180,
@@ -21,10 +22,31 @@ const DEFAULT_SETTINGS = {
 };
 const DEFAULT_BATCH_SIZE = 6;
 const STREAM_TYPES = ["world", "research", "music", "entertainment"];
+const DEFAULT_VIEW_STATE = {
+  query: "",
+  scope: "all",
+  sortMode: "smart",
+  activeTypes: {
+    world: true,
+    research: true,
+    music: true,
+    entertainment: true,
+  },
+};
+
+function cloneDefaultViewState() {
+  return {
+    query: DEFAULT_VIEW_STATE.query,
+    scope: DEFAULT_VIEW_STATE.scope,
+    sortMode: DEFAULT_VIEW_STATE.sortMode,
+    activeTypes: { ...DEFAULT_VIEW_STATE.activeTypes },
+  };
+}
 
 const state = {
   settings: loadSettings(),
   desk: loadDeskState(),
+  view: loadViewState(),
   worldItems: [],
   researchItems: [],
   musicItems: [],
@@ -85,6 +107,7 @@ const elements = {
   saveSettingsBtn: document.querySelector("#saveSettingsBtn"),
   pauseAllBtn: document.querySelector("#pauseAllBtn"),
   clearDismissedBtn: document.querySelector("#clearDismissedBtn"),
+  clearViewFiltersBtn: document.querySelector("#clearViewFiltersBtn"),
   refreshWorldBtn: document.querySelector("#refreshWorldBtn"),
   refreshResearchBtn: document.querySelector("#refreshResearchBtn"),
   refreshMusicBtn: document.querySelector("#refreshMusicBtn"),
@@ -107,6 +130,9 @@ const elements = {
   musicFeed: document.querySelector("#musicFeed"),
   entertainmentFeed: document.querySelector("#entertainmentFeed"),
   digestOutput: document.querySelector("#digestOutput"),
+  globalSearchInput: document.querySelector("#globalSearchInput"),
+  focusSummary: document.querySelector("#focusSummary"),
+  focusResultHint: document.querySelector("#focusResultHint"),
   spotlightLead: document.querySelector("#spotlightLead"),
   spotlightRail: document.querySelector("#spotlightRail"),
   savedDeskList: document.querySelector("#savedDeskList"),
@@ -133,12 +159,14 @@ const elements = {
   dataModeBadge: document.querySelector("#dataModeBadge"),
   sourceSummary: document.querySelector("#sourceSummary"),
   jumpLinks: document.querySelectorAll("[data-section]"),
+  viewButtons: document.querySelectorAll("[data-view-action]"),
 };
 
 void initialize();
 
 async function initialize() {
   syncControlsFromSettings();
+  syncViewControls();
   seedFallbackFeeds();
   renderAll();
   bindEvents();
@@ -204,6 +232,29 @@ function saveDeskState() {
   localStorage.setItem(DESK_STORAGE_KEY, JSON.stringify(state.desk));
 }
 
+function loadViewState() {
+  try {
+    const raw = localStorage.getItem(VIEW_STORAGE_KEY);
+    if (!raw) return cloneDefaultViewState();
+    const parsed = JSON.parse(raw);
+    return {
+      query: parsed.query || "",
+      scope: parsed.scope || "all",
+      sortMode: parsed.sortMode || "smart",
+      activeTypes: {
+        ...DEFAULT_VIEW_STATE.activeTypes,
+        ...(parsed.activeTypes || {}),
+      },
+    };
+  } catch {
+    return cloneDefaultViewState();
+  }
+}
+
+function saveViewState() {
+  localStorage.setItem(VIEW_STORAGE_KEY, JSON.stringify(state.view));
+}
+
 function syncControlsFromSettings() {
   elements.worldToggle.checked = state.settings.worldEnabled;
   elements.researchToggle.checked = state.settings.researchEnabled;
@@ -216,13 +267,37 @@ function syncControlsFromSettings() {
   elements.keywordInput.value = state.settings.keywords;
 }
 
+function syncViewControls() {
+  if (elements.globalSearchInput) {
+    elements.globalSearchInput.value = state.view.query;
+  }
+
+  elements.viewButtons.forEach((button) => {
+    const action = button.dataset.viewAction;
+    const value = button.dataset.value;
+    let active = false;
+
+    if (action === "toggle-type") {
+      active = Boolean(state.view.activeTypes[value]);
+    } else if (action === "set-scope") {
+      active = state.view.scope === value;
+    } else if (action === "set-sort") {
+      active = state.view.sortMode === value;
+    }
+
+    button.classList.toggle("is-active", active);
+  });
+}
+
 function bindEvents() {
   elements.notifyPermissionBtn.addEventListener("click", requestNotificationPermission);
   elements.manualDigestBtn.addEventListener("click", generateDigest);
   elements.saveSettingsBtn.addEventListener("click", handleSaveSettings);
   elements.pauseAllBtn.addEventListener("click", pauseAllSchedules);
   elements.clearDismissedBtn?.addEventListener("click", clearDismissedItems);
+  elements.clearViewFiltersBtn?.addEventListener("click", clearViewFilters);
   elements.backToTopBtn?.addEventListener("click", scrollToTop);
+  elements.globalSearchInput?.addEventListener("input", handleSearchInput);
   elements.refreshWorldBtn.addEventListener("click", () => refreshStream("world", { manual: true }));
   elements.refreshResearchBtn.addEventListener("click", () =>
     refreshStream("research", { manual: true }),
@@ -244,12 +319,20 @@ function bindEvents() {
       return;
     }
 
+    const viewButton = event.target.closest("[data-view-action]");
+    if (viewButton) {
+      handleViewAction(viewButton);
+      return;
+    }
+
     const link = event.target.closest("[data-section]");
     const sectionId = link?.dataset?.section;
     if (sectionId) {
       setActiveSection(sectionId);
     }
   });
+
+  document.addEventListener("keydown", handleGlobalShortcuts);
 }
 
 function seedFallbackFeeds() {
@@ -580,17 +663,162 @@ function getDeskEntries(shelf) {
   return Object.values(state.desk[shelf]).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
 }
 
+function handleSearchInput(event) {
+  state.view.query = event.target.value.trim();
+  saveViewState();
+  renderAll();
+}
+
+function clearViewFilters() {
+  state.view = cloneDefaultViewState();
+  saveViewState();
+  syncViewControls();
+  renderAll();
+  showToastCard("筛选已清空", "已经恢复默认视图。");
+}
+
+function handleViewAction(button) {
+  const action = button.dataset.viewAction;
+  const value = button.dataset.value;
+  if (!action || !value) return;
+
+  if (action === "toggle-type") {
+    state.view.activeTypes[value] = !state.view.activeTypes[value];
+    if (!Object.values(state.view.activeTypes).some(Boolean)) {
+      state.view.activeTypes[value] = true;
+      showToastCard("至少保留一个信息流", "不能把所有流都一起关掉。");
+    }
+  } else if (action === "set-scope") {
+    state.view.scope = value;
+  } else if (action === "set-sort") {
+    state.view.sortMode = value;
+  }
+
+  saveViewState();
+  syncViewControls();
+  renderAll();
+}
+
+function handleGlobalShortcuts(event) {
+  const target = event.target;
+  const isTypingTarget =
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target?.isContentEditable;
+
+  if (isTypingTarget && document.activeElement !== elements.globalSearchInput) {
+    return;
+  }
+
+  if (event.key === "/" && document.activeElement !== elements.globalSearchInput) {
+    event.preventDefault();
+    elements.globalSearchInput?.focus();
+    elements.globalSearchInput?.select();
+    return;
+  }
+
+  if (event.key === "Escape" && document.activeElement === elements.globalSearchInput) {
+    elements.globalSearchInput.blur();
+    if (state.view.query) {
+      state.view.query = "";
+      saveViewState();
+      syncViewControls();
+      renderAll();
+    }
+  }
+}
+
+function getScopedRankedItems(type) {
+  const query = state.view.query.toLowerCase();
+  const baseItems =
+    state.view.scope === "saved"
+      ? getDeskEntries("saved").filter((item) => item.type === type)
+      : state.view.scope === "later"
+        ? getDeskEntries("later").filter((item) => item.type === type)
+        : state.pools[type].length
+          ? state.pools[type]
+          : state[`${type}Items`];
+
+  return baseItems
+    .filter((item) => matchesViewFilters(type, item, query))
+    .sort((a, b) => compareItems(type, a, b));
+}
+
+function matchesViewFilters(type, item, query) {
+  if (!state.view.activeTypes[type]) return false;
+  if (isDismissed(type, item.id)) return false;
+
+  if (state.view.scope === "saved" && !state.desk.saved[buildDeskKey(type, item.id)]) return false;
+  if (state.view.scope === "later" && !state.desk.later[buildDeskKey(type, item.id)]) return false;
+
+  if (!query) return true;
+
+  const haystack = [item.title, item.summary, item.provider, item.region, item.relevance, item.signal]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return haystack.includes(query);
+}
+
+function compareItems(type, first, second) {
+  if (state.view.sortMode === "recent") {
+    return parseItemTimestamp(second.timestamp) - parseItemTimestamp(first.timestamp);
+  }
+
+  return scoreItem(type, second) - scoreItem(type, first);
+}
+
+function scoreItem(type, item) {
+  let score = type === "world" ? 18 : type === "research" ? 17 : type === "music" ? 15 : 16;
+  const key = buildDeskKey(type, item.id);
+  const focusTerms = state.settings.keywords
+    .split(",")
+    .map((term) => term.trim().toLowerCase())
+    .filter(Boolean);
+  const text = [item.title, item.summary, item.provider, item.relevance, item.signal]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  focusTerms.forEach((term) => {
+    if (text.includes(term)) score += 2.5;
+  });
+
+  if (state.view.query && text.includes(state.view.query.toLowerCase())) {
+    score += 6;
+  }
+
+  if (state.desk.saved[key]) score += 8;
+  if (state.desk.later[key]) score += 5;
+  if ((item.signal || "").includes("后备")) score -= 2;
+
+  return score;
+}
+
+function parseItemTimestamp(timestamp) {
+  if (!timestamp) return 0;
+  const match = String(timestamp).match(/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2})/);
+  if (!match) return 0;
+  const [, month, day, hour, minute] = match.map(Number);
+  const year = new Date().getFullYear();
+  return new Date(year, month - 1, day, hour, minute).getTime();
+}
+
 function renderAll() {
   STREAM_TYPES.forEach((type) => renderFeed(type));
   renderMetrics();
   renderPulseRail();
   renderSpotlight();
   renderDesk();
+  renderFocusConsole();
 }
 
 function renderFeed(type) {
   const container = elements[`${type}Feed`];
-  const items = state[`${type}Items`].filter((item) => !isDismissed(type, item.id));
+  const defaultMode = isDefaultView();
+  const items = defaultMode
+    ? state[`${type}Items`].filter((item) => matchesViewFilters(type, item, state.view.query.toLowerCase()))
+    : getScopedRankedItems(type).slice(0, state.batchSize[type] || DEFAULT_BATCH_SIZE);
   const meta = state.sourceMeta[type];
   const regionLabel =
     type === "world"
@@ -712,6 +940,7 @@ function renderMetrics() {
   ].join(" | ");
   renderPulseRail();
   renderSpotlight();
+  renderFocusConsole();
 }
 
 function buildSourceLine(meta) {
@@ -851,9 +1080,9 @@ function generateDigest() {
 function bindScrollExperience() {
   window.addEventListener("scroll", updateBackToTopButton, { passive: true });
   updateBackToTopButton();
-  setActiveSection("section-spotlight");
+  setActiveSection("section-focus");
 
-  const sections = document.querySelectorAll("#section-spotlight, #section-desk, #section-world, #section-research, #section-music, #section-entertainment, #section-digest");
+  const sections = document.querySelectorAll("#section-focus, #section-spotlight, #section-desk, #section-world, #section-research, #section-music, #section-entertainment, #section-digest");
   const observer = new IntersectionObserver(
     (entries) => {
       const visible = entries
@@ -881,7 +1110,7 @@ function updateBackToTopButton() {
 
 function scrollToTop() {
   window.scrollTo({ top: 0, behavior: "smooth" });
-  setActiveSection("section-spotlight");
+  setActiveSection("section-focus");
 }
 
 function setActiveSection(sectionId) {
@@ -978,7 +1207,7 @@ function renderSpotlight() {
 
 function buildSpotlightItems() {
   return STREAM_TYPES.map((type) => {
-    const item = state[`${type}Items`].find((entry) => !isDismissed(type, entry.id));
+    const item = getScopedRankedItems(type)[0];
     if (!item) return null;
     const meta = state.sourceMeta[type];
     return {
@@ -994,8 +1223,9 @@ function buildSpotlightItems() {
 }
 
 function renderDesk() {
-  const savedEntries = getDeskEntries("saved");
-  const laterEntries = getDeskEntries("later");
+  const query = state.view.query.toLowerCase();
+  const savedEntries = getDeskEntries("saved").filter((item) => matchesDeskQuery(item, query));
+  const laterEntries = getDeskEntries("later").filter((item) => matchesDeskQuery(item, query));
   const dismissedCount = Object.keys(state.desk.dismissed).length;
 
   elements.savedCountBadge.textContent = String(savedEntries.length);
@@ -1057,7 +1287,7 @@ function renderPulseRail() {
   STREAM_TYPES.forEach((type) => {
     const element = elements[`${type}Pulse`];
     if (!element) return;
-    const lead = state[`${type}Items`].find((item) => !isDismissed(type, item.id));
+    const lead = getScopedRankedItems(type)[0];
     const meta = state.sourceMeta[type];
     const count = state.pools[type].length || state.sourceMeta[type].poolSize || 0;
 
@@ -1092,6 +1322,45 @@ function buildDigestMarkup() {
       </div>
     </div>
   `;
+}
+
+function renderFocusConsole() {
+  if (!elements.focusSummary || !elements.focusResultHint) return;
+  const activeStreams = STREAM_TYPES.filter((type) => state.view.activeTypes[type]).length;
+  const totalResults = STREAM_TYPES.reduce((sum, type) => sum + getScopedRankedItems(type).length, 0);
+  const scopeLabel =
+    state.view.scope === "saved"
+      ? "收藏内容"
+      : state.view.scope === "later"
+        ? "稍后看"
+        : "全部内容";
+  const sortLabel = state.view.sortMode === "recent" ? "最新优先" : "智能排序";
+
+  elements.focusSummary.textContent = `${totalResults} RESULTS`;
+  elements.focusResultHint.textContent = [
+    `当前范围: ${scopeLabel}`,
+    `开启流: ${activeStreams} 个`,
+    `排序: ${sortLabel}`,
+    state.view.query ? `搜索: ${state.view.query}` : "搜索: 未输入",
+  ].join(" · ");
+}
+
+function matchesDeskQuery(item, query) {
+  if (!query) return true;
+  const text = [item.title, item.summary, item.provider, item.relevance, item.region]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return text.includes(query);
+}
+
+function isDefaultView() {
+  return (
+    !state.view.query &&
+    state.view.scope === "all" &&
+    state.view.sortMode === "smart" &&
+    STREAM_TYPES.every((type) => state.view.activeTypes[type])
+  );
 }
 
 function buildDigestCard(type, items, insightLabel) {

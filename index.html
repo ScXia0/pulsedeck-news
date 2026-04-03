@@ -8,8 +8,8 @@
       content="一个暗色科技风的个人情报网页应用，持续追踪全球热点、AI/NLP 前沿、近期热门歌曲与娱乐新闻。"
     />
     <meta name="theme-color" content="#060816" />
-    <link rel="manifest" href="./manifest.webmanifest?v=11" />
-    <link rel="stylesheet" href="./styles.css?v=11" />
+    <link rel="manifest" href="./manifest.webmanifest?v=12" />
+    <link rel="stylesheet" href="./styles.css?v=12" />
     <title>XscNews</title>
   </head>
   <body>
@@ -88,6 +88,7 @@
       </header>
 
       <nav class="quick-jump" aria-label="快速跳转">
+        <a class="quick-jump-link stream-neutral" href="#section-focus" data-section="section-focus">筛选</a>
         <a class="quick-jump-link stream-neutral" href="#section-spotlight" data-section="section-spotlight">精选</a>
         <a class="quick-jump-link stream-neutral" href="#section-desk" data-section="section-desk">桌面</a>
         <a class="quick-jump-link stream-world" href="#section-world" data-section="section-world">热点</a>
@@ -98,6 +99,59 @@
       </nav>
 
       <main class="dashboard">
+        <section id="section-focus" class="panel focus-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="panel-kicker">FOCUS CONSOLE</p>
+              <h2>情报筛选台</h2>
+            </div>
+            <span id="focusSummary" class="panel-badge">ALL SIGNALS</span>
+          </div>
+
+          <div class="focus-grid">
+            <label class="focus-search">
+              <span>全局搜索</span>
+              <input
+                id="globalSearchInput"
+                type="search"
+                placeholder="搜索标题、摘要、来源、关键词，按 / 快速聚焦"
+              />
+            </label>
+
+            <div class="focus-block">
+              <span class="focus-label">信息流筛选</span>
+              <div class="focus-pills">
+                <button class="focus-pill is-active stream-world" type="button" data-view-action="toggle-type" data-value="world">热点</button>
+                <button class="focus-pill is-active stream-research" type="button" data-view-action="toggle-type" data-value="research">研究</button>
+                <button class="focus-pill is-active stream-music" type="button" data-view-action="toggle-type" data-value="music">音乐</button>
+                <button class="focus-pill is-active stream-entertainment" type="button" data-view-action="toggle-type" data-value="entertainment">娱乐</button>
+              </div>
+            </div>
+
+            <div class="focus-block">
+              <span class="focus-label">查看范围</span>
+              <div class="focus-pills">
+                <button class="focus-pill is-active" type="button" data-view-action="set-scope" data-value="all">全部内容</button>
+                <button class="focus-pill" type="button" data-view-action="set-scope" data-value="saved">只看收藏</button>
+                <button class="focus-pill" type="button" data-view-action="set-scope" data-value="later">只看稍后看</button>
+              </div>
+            </div>
+
+            <div class="focus-block">
+              <span class="focus-label">排序方式</span>
+              <div class="focus-pills">
+                <button class="focus-pill is-active" type="button" data-view-action="set-sort" data-value="smart">智能排序</button>
+                <button class="focus-pill" type="button" data-view-action="set-sort" data-value="recent">最新优先</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="focus-footer">
+            <p id="focusResultHint" class="source-summary">正在根据你的关键词和偏好对信息流进行排序。</p>
+            <button id="clearViewFiltersBtn" class="ghost-button" type="button">清空筛选</button>
+          </div>
+        </section>
+
         <section id="section-spotlight" class="panel spotlight-panel">
           <div class="panel-heading">
             <div>
@@ -357,6 +411,6 @@
       回到顶部
     </button>
 
-    <script type="module" src="./app.js?v=11"></script>
+    <script type="module" src="./app.js?v=12"></script>
   </body>
 </html>

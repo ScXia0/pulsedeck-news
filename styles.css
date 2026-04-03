@@ -370,6 +370,105 @@ h1 {
     var(--panel);
 }
 
+.focus-panel {
+  scroll-margin-top: 110px;
+  background:
+    linear-gradient(180deg, rgba(13, 25, 56, 0.72), rgba(6, 10, 24, 0.92)),
+    var(--panel);
+}
+
+.focus-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 1.15fr) repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.focus-search,
+.focus-block {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.focus-search span,
+.focus-label {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+.focus-search input {
+  width: 100%;
+  border-radius: 16px;
+  border: 1px solid rgba(115, 231, 255, 0.14);
+  background: rgba(4, 8, 18, 0.88);
+  color: var(--text);
+  padding: 14px 16px;
+  outline: none;
+}
+
+.focus-search input:focus {
+  border-color: rgba(115, 231, 255, 0.36);
+  box-shadow: 0 0 0 4px rgba(115, 231, 255, 0.08);
+}
+
+.focus-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.focus-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.focus-pill.is-active {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: var(--shadow-soft);
+}
+
+.focus-pill.stream-world {
+  color: var(--world-accent);
+}
+
+.focus-pill.stream-research {
+  color: var(--research-accent);
+}
+
+.focus-pill.stream-music {
+  color: var(--music-accent);
+}
+
+.focus-pill.stream-entertainment {
+  color: var(--entertainment-accent);
+}
+
+.focus-footer {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+
+.focus-footer .source-summary {
+  margin: 0;
+  flex: 1 1 420px;
+}
+
 .spotlight-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
@@ -1532,6 +1631,7 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
+  .focus-grid,
   .desk-grid,
   .spotlight-grid,
   .signal-grid {
@@ -1548,6 +1648,7 @@ button:disabled {
     width: min(100% - 24px, 1420px);
   }
 
+  .focus-grid,
   .desk-grid,
   .spotlight-grid,
   .signal-grid,
@@ -1601,6 +1702,7 @@ button:disabled {
     align-items: flex-start;
   }
 
+  .focus-footer,
   .signal-topline,
   .signal-footer,
   .panel-heading-actions {
