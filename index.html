@@ -8,8 +8,8 @@
       content="一个暗色科技风的个人情报网页应用，持续追踪全球热点、AI/NLP 前沿、近期热门歌曲与娱乐新闻。"
     />
     <meta name="theme-color" content="#060816" />
-    <link rel="manifest" href="./manifest.webmanifest?v=7" />
-    <link rel="stylesheet" href="./styles.css?v=7" />
+    <link rel="manifest" href="./manifest.webmanifest?v=8" />
+    <link rel="stylesheet" href="./styles.css?v=8" />
     <title>XscNews</title>
   </head>
   <body>
@@ -87,6 +87,23 @@
       </header>
 
       <main class="dashboard">
+        <section class="panel signal-panel">
+          <div class="panel-heading signal-heading">
+            <div>
+              <p class="panel-kicker">LIVE PULSE</p>
+              <h2>实时脉冲总览</h2>
+            </div>
+            <span class="panel-badge">EDITORIAL MODE</span>
+          </div>
+
+          <div class="signal-grid">
+            <article id="worldPulse" class="signal-card stream-world"></article>
+            <article id="researchPulse" class="signal-card stream-research"></article>
+            <article id="musicPulse" class="signal-card stream-music"></article>
+            <article id="entertainmentPulse" class="signal-card stream-entertainment"></article>
+          </div>
+        </section>
+
         <section class="control-panel panel">
           <div class="panel-heading">
             <div>
@@ -264,12 +281,15 @@
             </div>
           </div>
           <div id="digestOutput" class="digest-output">
-            点击“立即生成今日摘要”后，这里会生成一版压缩后的简报。
+            <div class="digest-placeholder">
+              <strong>Briefing 尚未生成</strong>
+              <p>点击“立即生成今日摘要”后，这里会把四条内容流压缩成一版更适合快速浏览的简报。</p>
+            </div>
           </div>
         </section>
       </main>
     </div>
 
-    <script type="module" src="./app.js?v=7"></script>
+    <script type="module" src="./app.js?v=8"></script>
   </body>
 </html>

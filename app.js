@@ -104,6 +104,10 @@ const elements = {
   musicFeed: document.querySelector("#musicFeed"),
   entertainmentFeed: document.querySelector("#entertainmentFeed"),
   digestOutput: document.querySelector("#digestOutput"),
+  worldPulse: document.querySelector("#worldPulse"),
+  researchPulse: document.querySelector("#researchPulse"),
+  musicPulse: document.querySelector("#musicPulse"),
+  entertainmentPulse: document.querySelector("#entertainmentPulse"),
   worldCount: document.querySelector("#worldCount"),
   researchCount: document.querySelector("#researchCount"),
   musicCount: document.querySelector("#musicCount"),
@@ -408,6 +412,7 @@ function buildLinkLabel(type, existingUrl) {
 function renderAll() {
   STREAM_TYPES.forEach((type) => renderFeed(type));
   renderMetrics();
+  renderPulseRail();
 }
 
 function renderFeed(type) {
@@ -436,11 +441,13 @@ function renderFeed(type) {
 
   if (state.loading[type] && !items.length) {
     container.innerHTML = '<div class="empty-state">正在构建多源内容池...</div>';
+    renderPulseRail();
     return;
   }
 
   if (!items.length) {
     container.innerHTML = '<div class="empty-state">当前没有内容，等待下一次推送。</div>';
+    renderPulseRail();
     return;
   }
 
@@ -451,10 +458,13 @@ function renderFeed(type) {
     </div>
     ${items
       .map(
-        ({ title, summary, region, signal, relevance, timestamp, url, provider, linkLabel }) => `
-          <article class="${itemClass}">
+        ({ title, summary, region, signal, relevance, timestamp, url, provider, linkLabel }, index) => `
+          <article class="${itemClass}${index === 0 ? " featured" : ""}">
             <div class="feed-item-header">
-              <span class="${regionTagClass}">${escapeHtml(region)}</span>
+              <div class="feed-item-headline">
+                <span class="feed-priority">${index === 0 ? "TOP PICK" : "LIVE"}</span>
+                <span class="${regionTagClass}">${escapeHtml(region)}</span>
+              </div>
               <span class="muted">${escapeHtml(timestamp)}</span>
             </div>
             <h3>${escapeHtml(title)}</h3>
@@ -472,6 +482,7 @@ function renderFeed(type) {
       )
       .join("")}
   `;
+  renderPulseRail();
 }
 
 function renderMetrics() {
@@ -506,6 +517,7 @@ function renderMetrics() {
     `音乐: ${buildSourceLine(state.sourceMeta.music)}`,
     `娱乐: ${buildSourceLine(state.sourceMeta.entertainment)}`,
   ].join(" | ");
+  renderPulseRail();
 }
 
 function buildSourceLine(meta) {
@@ -636,7 +648,8 @@ function generateDigest() {
     state.entertainmentItems,
     state.settings.keywords,
   );
-  elements.digestOutput.textContent = digest;
+  elements.digestOutput.dataset.plaintext = digest;
+  elements.digestOutput.innerHTML = buildDigestMarkup();
   elements.lastDigestTime.textContent = `最近摘要: ${formatTime(new Date())}`;
   showToastCard("今日摘要已生成", "当前简报已经根据最新信息流重组。");
 }
@@ -660,6 +673,68 @@ function showToastCard(title, message) {
       stack.remove();
     }
   }, 3200);
+}
+
+function renderPulseRail() {
+  STREAM_TYPES.forEach((type) => {
+    const element = elements[`${type}Pulse`];
+    if (!element) return;
+    const lead = state[`${type}Items`][0];
+    const meta = state.sourceMeta[type];
+    const count = state.pools[type].length || state.sourceMeta[type].poolSize || 0;
+
+    element.innerHTML = `
+      <div class="signal-topline">
+        <span class="signal-label">${escapeHtml(streamPulseLabel(type))}</span>
+        <span class="signal-mode ${meta.mode === "live" ? "live" : "fallback"}">${meta.mode === "live" ? "LIVE" : "FALLBACK"}</span>
+      </div>
+      <h3>${escapeHtml(lead?.title || `${streamTitle(type)}正在准备中`)}</h3>
+      <p>${escapeHtml(lead?.summary || "正在连接该流的实时数据与后备资源池。")}</p>
+      <div class="signal-footer">
+        <span>${escapeHtml(meta.provider || defaultProvider(type))}</span>
+        <span>${count} 条池内内容</span>
+      </div>
+    `;
+  });
+}
+
+function buildDigestMarkup() {
+  return `
+    <div class="digest-shell">
+      <div class="digest-summary-head">
+        <span class="digest-mark">Briefing</span>
+        <strong>今日情报简报</strong>
+        <span class="muted">关键词: ${escapeHtml(state.settings.keywords || "未设置")}</span>
+      </div>
+      <div class="digest-grid">
+        ${buildDigestCard("world", state.worldItems, "影响面")}
+        ${buildDigestCard("research", state.researchItems, "落地方向")}
+        ${buildDigestCard("music", state.musicItems, "热度线索")}
+        ${buildDigestCard("entertainment", state.entertainmentItems, "关注面")}
+      </div>
+    </div>
+  `;
+}
+
+function buildDigestCard(type, items, insightLabel) {
+  const lead = items[0];
+  const follow = items[1];
+  const meta = state.sourceMeta[type];
+
+  return `
+    <article class="digest-card stream-${type}">
+      <div class="digest-card-top">
+        <span class="tag stream-chip stream-chip-${type}">${escapeHtml(streamTitle(type))}</span>
+        <span class="muted">${escapeHtml(meta.mode === "live" ? "实时源在线" : "后备模式")}</span>
+      </div>
+      <h3>${escapeHtml(lead?.title || "暂无重点内容")}</h3>
+      <p>${escapeHtml(lead?.summary || "等待下一次内容轮换。")}</p>
+      <div class="digest-card-meta">
+        <span>${escapeHtml(insightLabel)}: ${escapeHtml(lead?.relevance || lead?.provider || "待补充")}</span>
+        <span>${escapeHtml(follow?.title || "暂无补充线索")}</span>
+      </div>
+    </article>
+  `;
 }
 
 function registerServiceWorker() {
@@ -689,6 +764,13 @@ function streamNotificationTitle(type) {
   if (type === "research") return "AI / NLP 前沿更新";
   if (type === "entertainment") return "娱乐新闻更新";
   return "热门歌曲更新";
+}
+
+function streamPulseLabel(type) {
+  if (type === "world") return "Global Pulse";
+  if (type === "research") return "Research Pulse";
+  if (type === "entertainment") return "Entertainment Pulse";
+  return "Music Pulse";
 }
 
 function defaultProvider(type) {
