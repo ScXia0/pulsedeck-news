@@ -8,8 +8,8 @@
       content="一个暗色科技风的个人情报网页应用，持续追踪全球热点、AI/NLP 前沿、近期热门歌曲与娱乐新闻。"
     />
     <meta name="theme-color" content="#060816" />
-    <link rel="manifest" href="./manifest.webmanifest?v=10" />
-    <link rel="stylesheet" href="./styles.css?v=10" />
+    <link rel="manifest" href="./manifest.webmanifest?v=11" />
+    <link rel="stylesheet" href="./styles.css?v=11" />
     <title>XscNews</title>
   </head>
   <body>
@@ -89,6 +89,7 @@
 
       <nav class="quick-jump" aria-label="快速跳转">
         <a class="quick-jump-link stream-neutral" href="#section-spotlight" data-section="section-spotlight">精选</a>
+        <a class="quick-jump-link stream-neutral" href="#section-desk" data-section="section-desk">桌面</a>
         <a class="quick-jump-link stream-world" href="#section-world" data-section="section-world">热点</a>
         <a class="quick-jump-link stream-research" href="#section-research" data-section="section-research">研究</a>
         <a class="quick-jump-link stream-music" href="#section-music" data-section="section-music">音乐</a>
@@ -108,6 +109,44 @@
           <div class="spotlight-grid">
             <article id="spotlightLead" class="spotlight-lead"></article>
             <div id="spotlightRail" class="spotlight-rail"></div>
+          </div>
+        </section>
+
+        <section id="section-desk" class="panel desk-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="panel-kicker">MY DESK</p>
+              <h2>我的情报桌</h2>
+            </div>
+            <span class="panel-badge">LOCAL MEMORY</span>
+          </div>
+
+          <div class="desk-grid">
+            <article class="desk-card">
+              <div class="desk-card-head">
+                <h3>收藏夹</h3>
+                <span id="savedCountBadge" class="desk-count">0</span>
+              </div>
+              <div id="savedDeskList" class="desk-list"></div>
+            </article>
+
+            <article class="desk-card">
+              <div class="desk-card-head">
+                <h3>稍后看</h3>
+                <span id="laterCountBadge" class="desk-count">0</span>
+              </div>
+              <div id="laterDeskList" class="desk-list"></div>
+            </article>
+
+            <article class="desk-card desk-card-compact">
+              <div class="desk-card-head">
+                <h3>内容整理</h3>
+              </div>
+              <div id="deskStats" class="desk-stats"></div>
+              <button id="clearDismissedBtn" class="ghost-button desk-clear-button" type="button">
+                恢复隐藏内容
+              </button>
+            </article>
           </div>
         </section>
 
@@ -318,6 +357,6 @@
       回到顶部
     </button>
 
-    <script type="module" src="./app.js?v=10"></script>
+    <script type="module" src="./app.js?v=11"></script>
   </body>
 </html>

@@ -7,6 +7,7 @@ import {
 } from "./data.js";
 
 const STORAGE_KEY = "pulse-deck-settings";
+const DESK_STORAGE_KEY = "xscnews-desk-state";
 const DEFAULT_SETTINGS = {
   worldEnabled: true,
   worldInterval: 180,
@@ -23,6 +24,7 @@ const STREAM_TYPES = ["world", "research", "music", "entertainment"];
 
 const state = {
   settings: loadSettings(),
+  desk: loadDeskState(),
   worldItems: [],
   researchItems: [],
   musicItems: [],
@@ -82,6 +84,7 @@ const elements = {
   manualDigestBtn: document.querySelector("#manualDigestBtn"),
   saveSettingsBtn: document.querySelector("#saveSettingsBtn"),
   pauseAllBtn: document.querySelector("#pauseAllBtn"),
+  clearDismissedBtn: document.querySelector("#clearDismissedBtn"),
   refreshWorldBtn: document.querySelector("#refreshWorldBtn"),
   refreshResearchBtn: document.querySelector("#refreshResearchBtn"),
   refreshMusicBtn: document.querySelector("#refreshMusicBtn"),
@@ -106,6 +109,11 @@ const elements = {
   digestOutput: document.querySelector("#digestOutput"),
   spotlightLead: document.querySelector("#spotlightLead"),
   spotlightRail: document.querySelector("#spotlightRail"),
+  savedDeskList: document.querySelector("#savedDeskList"),
+  laterDeskList: document.querySelector("#laterDeskList"),
+  deskStats: document.querySelector("#deskStats"),
+  savedCountBadge: document.querySelector("#savedCountBadge"),
+  laterCountBadge: document.querySelector("#laterCountBadge"),
   worldPulse: document.querySelector("#worldPulse"),
   researchPulse: document.querySelector("#researchPulse"),
   musicPulse: document.querySelector("#musicPulse"),
@@ -166,6 +174,36 @@ function saveSettings() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.settings));
 }
 
+function loadDeskState() {
+  try {
+    const raw = localStorage.getItem(DESK_STORAGE_KEY);
+    if (!raw) {
+      return {
+        saved: {},
+        later: {},
+        dismissed: {},
+      };
+    }
+
+    const parsed = JSON.parse(raw);
+    return {
+      saved: parsed.saved || {},
+      later: parsed.later || {},
+      dismissed: parsed.dismissed || {},
+    };
+  } catch {
+    return {
+      saved: {},
+      later: {},
+      dismissed: {},
+    };
+  }
+}
+
+function saveDeskState() {
+  localStorage.setItem(DESK_STORAGE_KEY, JSON.stringify(state.desk));
+}
+
 function syncControlsFromSettings() {
   elements.worldToggle.checked = state.settings.worldEnabled;
   elements.researchToggle.checked = state.settings.researchEnabled;
@@ -183,6 +221,7 @@ function bindEvents() {
   elements.manualDigestBtn.addEventListener("click", generateDigest);
   elements.saveSettingsBtn.addEventListener("click", handleSaveSettings);
   elements.pauseAllBtn.addEventListener("click", pauseAllSchedules);
+  elements.clearDismissedBtn?.addEventListener("click", clearDismissedItems);
   elements.backToTopBtn?.addEventListener("click", scrollToTop);
   elements.refreshWorldBtn.addEventListener("click", () => refreshStream("world", { manual: true }));
   elements.refreshResearchBtn.addEventListener("click", () =>
@@ -199,6 +238,12 @@ function bindEvents() {
     nextBatch("entertainment", { manual: true }),
   );
   document.addEventListener("click", (event) => {
+    const actionButton = event.target.closest("[data-action]");
+    if (actionButton) {
+      handleDeskAction(actionButton);
+      return;
+    }
+
     const link = event.target.closest("[data-section]");
     const sectionId = link?.dataset?.section;
     if (sectionId) {
@@ -347,13 +392,13 @@ function nextBatch(type, { resetSeen = false, manual = false } = {}) {
     state.seenIds[type].clear();
   }
 
-  let candidates = pool.filter((item) => !state.seenIds[type].has(item.id));
+  let candidates = pool.filter((item) => !state.seenIds[type].has(item.id) && !isDismissed(type, item.id));
   if (!candidates.length) {
     state.seenIds[type].clear();
-    candidates = [...pool];
+    candidates = pool.filter((item) => !isDismissed(type, item.id));
   }
 
-  const batch = candidates.slice(0, state.batchSize[type] || DEFAULT_BATCH_SIZE);
+  const batch = (candidates.length ? candidates : pool).slice(0, state.batchSize[type] || DEFAULT_BATCH_SIZE);
   batch.forEach((item) => state.seenIds[type].add(item.id));
   state[`${type}Items`] = batch;
   renderFeed(type);
@@ -422,16 +467,130 @@ function buildLinkLabel(type, existingUrl) {
   return "搜索歌曲";
 }
 
+function buildDeskKey(type, id) {
+  return `${type}:${id}`;
+}
+
+function isDismissed(type, id) {
+  return Boolean(state.desk.dismissed[buildDeskKey(type, id)]);
+}
+
+function serializeDeskItem(type, item) {
+  return {
+    id: item.id,
+    type,
+    title: item.title,
+    summary: item.summary,
+    url: item.url,
+    provider: item.provider,
+    linkLabel: item.linkLabel,
+    region: item.region,
+    relevance: item.relevance,
+    timestamp: item.timestamp,
+    savedAt: Date.now(),
+  };
+}
+
+function toggleDeskShelf(shelf, type, item) {
+  const key = buildDeskKey(type, item.id);
+  if (state.desk[shelf][key]) {
+    delete state.desk[shelf][key];
+    saveDeskState();
+    return false;
+  }
+
+  state.desk[shelf][key] = serializeDeskItem(type, item);
+  saveDeskState();
+  return true;
+}
+
+function dismissDeskItem(type, item) {
+  const key = buildDeskKey(type, item.id);
+  state.desk.dismissed[key] = {
+    id: item.id,
+    type,
+    title: item.title,
+    dismissedAt: Date.now(),
+  };
+  delete state.desk.saved[key];
+  delete state.desk.later[key];
+  saveDeskState();
+}
+
+function clearDismissedItems() {
+  const count = Object.keys(state.desk.dismissed).length;
+  state.desk.dismissed = {};
+  saveDeskState();
+  renderAll();
+  showToastCard("隐藏内容已恢复", count ? `已恢复 ${count} 条内容。` : "当前没有被隐藏的内容。");
+}
+
+function handleDeskAction(button) {
+  const action = button.dataset.action;
+  const type = button.dataset.type;
+  const itemId = button.dataset.itemId;
+  if (!action || !type || !itemId) return;
+
+  const item = findItem(type, itemId) || findDeskItem(type, itemId);
+  if (!item) return;
+
+  if (action === "save") {
+    const active = toggleDeskShelf("saved", type, item);
+    renderAll();
+    showToastCard(active ? "已加入收藏" : "已取消收藏", item.title);
+    return;
+  }
+
+  if (action === "later") {
+    const active = toggleDeskShelf("later", type, item);
+    renderAll();
+    showToastCard(active ? "已加入稍后看" : "已取消稍后看", item.title);
+    return;
+  }
+
+  if (action === "dismiss") {
+    dismissDeskItem(type, item);
+    renderAll();
+    showToastCard("已隐藏该内容", "之后的换一批和精选会尽量避开它。");
+    return;
+  }
+
+  if (action === "remove") {
+    const shelf = button.dataset.shelf;
+    const key = buildDeskKey(type, itemId);
+    if (shelf && state.desk[shelf]?.[key]) {
+      delete state.desk[shelf][key];
+      saveDeskState();
+      renderAll();
+      showToastCard("已从情报桌移除", item.title);
+    }
+  }
+}
+
+function findItem(type, itemId) {
+  return state.pools[type].find((item) => item.id === itemId) || state[`${type}Items`].find((item) => item.id === itemId);
+}
+
+function findDeskItem(type, itemId) {
+  const key = buildDeskKey(type, itemId);
+  return state.desk.saved[key] || state.desk.later[key] || null;
+}
+
+function getDeskEntries(shelf) {
+  return Object.values(state.desk[shelf]).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+}
+
 function renderAll() {
   STREAM_TYPES.forEach((type) => renderFeed(type));
   renderMetrics();
   renderPulseRail();
   renderSpotlight();
+  renderDesk();
 }
 
 function renderFeed(type) {
   const container = elements[`${type}Feed`];
-  const items = state[`${type}Items`];
+  const items = state[`${type}Items`].filter((item) => !isDismissed(type, item.id));
   const meta = state.sourceMeta[type];
   const regionLabel =
     type === "world"
@@ -460,7 +619,7 @@ function renderFeed(type) {
   }
 
   if (!items.length) {
-    container.innerHTML = '<div class="empty-state">当前没有内容，等待下一次推送。</div>';
+    container.innerHTML = '<div class="empty-state">当前这一批内容都被隐藏或已空，点“换一批”试试。</div>';
     renderPulseRail();
     return;
   }
@@ -473,7 +632,11 @@ function renderFeed(type) {
     ${items
       .map(
         ({ title, summary, region, signal, relevance, timestamp, url, provider, linkLabel }, index) => {
+          const item = items[index];
+          const itemId = item?.id || "";
           const heat = buildHeatState(type, index, meta);
+          const savedActive = Boolean(state.desk.saved[buildDeskKey(type, itemId)]);
+          const laterActive = Boolean(state.desk.later[buildDeskKey(type, itemId)]);
           return `
           <article class="${itemClass}${index === 0 ? " featured" : ""}">
             <div class="feed-item-header">
@@ -493,6 +656,17 @@ function renderFeed(type) {
             <div class="feed-footer">
               <span class="muted">${escapeHtml(provider)}</span>
               <a class="${linkClass}" href="${escapeAttribute(url)}" target="_blank" rel="noreferrer">${escapeHtml(linkLabel)}</a>
+            </div>
+            <div class="feed-actions">
+              <button class="item-action ${savedActive ? "is-active" : ""}" type="button" data-action="save" data-type="${type}" data-item-id="${escapeAttribute(itemId)}">
+                ${savedActive ? "已收藏" : "收藏"}
+              </button>
+              <button class="item-action ${laterActive ? "is-active" : ""}" type="button" data-action="later" data-type="${type}" data-item-id="${escapeAttribute(itemId)}">
+                ${laterActive ? "已加入稍后看" : "稍后看"}
+              </button>
+              <button class="item-action item-action-muted" type="button" data-action="dismiss" data-type="${type}" data-item-id="${escapeAttribute(itemId)}">
+                不感兴趣
+              </button>
             </div>
           </article>
         `;
@@ -679,7 +853,7 @@ function bindScrollExperience() {
   updateBackToTopButton();
   setActiveSection("section-spotlight");
 
-  const sections = document.querySelectorAll("#section-spotlight, #section-world, #section-research, #section-music, #section-entertainment, #section-digest");
+  const sections = document.querySelectorAll("#section-spotlight, #section-desk, #section-world, #section-research, #section-music, #section-entertainment, #section-digest");
   const observer = new IntersectionObserver(
     (entries) => {
       const visible = entries
@@ -804,7 +978,7 @@ function renderSpotlight() {
 
 function buildSpotlightItems() {
   return STREAM_TYPES.map((type) => {
-    const item = state[`${type}Items`][0];
+    const item = state[`${type}Items`].find((entry) => !isDismissed(type, entry.id));
     if (!item) return null;
     const meta = state.sourceMeta[type];
     return {
@@ -819,6 +993,58 @@ function buildSpotlightItems() {
     .map((item, index) => ({ ...item, order: index }));
 }
 
+function renderDesk() {
+  const savedEntries = getDeskEntries("saved");
+  const laterEntries = getDeskEntries("later");
+  const dismissedCount = Object.keys(state.desk.dismissed).length;
+
+  elements.savedCountBadge.textContent = String(savedEntries.length);
+  elements.laterCountBadge.textContent = String(laterEntries.length);
+
+  elements.savedDeskList.innerHTML = savedEntries.length
+    ? savedEntries.slice(0, 5).map((item) => buildDeskItemMarkup(item, "saved")).join("")
+    : '<div class="desk-empty">还没有收藏内容。看到喜欢的条目时，点一下“收藏”就会收进这里。</div>';
+
+  elements.laterDeskList.innerHTML = laterEntries.length
+    ? laterEntries.slice(0, 5).map((item) => buildDeskItemMarkup(item, "later")).join("")
+    : '<div class="desk-empty">还没有稍后看内容。想晚点再读的资讯，可以先放到这里。</div>';
+
+  elements.deskStats.innerHTML = `
+    <div class="desk-stat">
+      <strong>${savedEntries.length}</strong>
+      <span>已收藏</span>
+    </div>
+    <div class="desk-stat">
+      <strong>${laterEntries.length}</strong>
+      <span>稍后看</span>
+    </div>
+    <div class="desk-stat">
+      <strong>${dismissedCount}</strong>
+      <span>已隐藏</span>
+    </div>
+  `;
+
+  elements.clearDismissedBtn.disabled = dismissedCount === 0;
+}
+
+function buildDeskItemMarkup(item, shelf) {
+  return `
+    <article class="desk-item">
+      <div class="desk-item-top">
+        <span class="tag stream-chip stream-chip-${item.type}">${escapeHtml(streamTitle(item.type))}</span>
+        <span class="muted">${escapeHtml(item.timestamp || "刚刚")}</span>
+      </div>
+      <h4>${escapeHtml(item.title)}</h4>
+      <p>${escapeHtml(item.summary || "暂无摘要。")}</p>
+      <div class="desk-item-actions">
+        <a href="#section-${item.type}" class="mini-link" data-section="section-${item.type}">进入板块</a>
+        <a href="${escapeAttribute(item.url)}" class="mini-link" target="_blank" rel="noreferrer">${escapeHtml(item.linkLabel || "查看内容")}</a>
+        <button class="mini-link-button" type="button" data-action="remove" data-shelf="${shelf}" data-type="${item.type}" data-item-id="${escapeAttribute(item.id)}">移除</button>
+      </div>
+    </article>
+  `;
+}
+
 function spotlightScore(type, item, meta) {
   const base = type === "world" ? 14 : type === "research" ? 13 : type === "entertainment" ? 12 : 11;
   const liveBonus = meta.mode === "live" ? 6 : 0;
@@ -831,7 +1057,7 @@ function renderPulseRail() {
   STREAM_TYPES.forEach((type) => {
     const element = elements[`${type}Pulse`];
     if (!element) return;
-    const lead = state[`${type}Items`][0];
+    const lead = state[`${type}Items`].find((item) => !isDismissed(type, item.id));
     const meta = state.sourceMeta[type];
     const count = state.pools[type].length || state.sourceMeta[type].poolSize || 0;
 
@@ -869,8 +1095,9 @@ function buildDigestMarkup() {
 }
 
 function buildDigestCard(type, items, insightLabel) {
-  const lead = items[0];
-  const follow = items[1];
+  const visibleItems = items.filter((item) => !isDismissed(type, item.id));
+  const lead = visibleItems[0];
+  const follow = visibleItems[1];
   const meta = state.sourceMeta[type];
 
   return `
