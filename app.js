@@ -104,10 +104,13 @@ const elements = {
   musicFeed: document.querySelector("#musicFeed"),
   entertainmentFeed: document.querySelector("#entertainmentFeed"),
   digestOutput: document.querySelector("#digestOutput"),
+  spotlightLead: document.querySelector("#spotlightLead"),
+  spotlightRail: document.querySelector("#spotlightRail"),
   worldPulse: document.querySelector("#worldPulse"),
   researchPulse: document.querySelector("#researchPulse"),
   musicPulse: document.querySelector("#musicPulse"),
   entertainmentPulse: document.querySelector("#entertainmentPulse"),
+  backToTopBtn: document.querySelector("#backToTopBtn"),
   worldCount: document.querySelector("#worldCount"),
   researchCount: document.querySelector("#researchCount"),
   musicCount: document.querySelector("#musicCount"),
@@ -121,6 +124,7 @@ const elements = {
   lastDigestTime: document.querySelector("#lastDigestTime"),
   dataModeBadge: document.querySelector("#dataModeBadge"),
   sourceSummary: document.querySelector("#sourceSummary"),
+  jumpLinks: document.querySelectorAll("[data-section]"),
 };
 
 void initialize();
@@ -130,6 +134,7 @@ async function initialize() {
   seedFallbackFeeds();
   renderAll();
   bindEvents();
+  bindScrollExperience();
   updateNotificationState();
   registerServiceWorker();
   await Promise.all(STREAM_TYPES.map((type) => refreshStream(type)));
@@ -178,6 +183,7 @@ function bindEvents() {
   elements.manualDigestBtn.addEventListener("click", generateDigest);
   elements.saveSettingsBtn.addEventListener("click", handleSaveSettings);
   elements.pauseAllBtn.addEventListener("click", pauseAllSchedules);
+  elements.backToTopBtn?.addEventListener("click", scrollToTop);
   elements.refreshWorldBtn.addEventListener("click", () => refreshStream("world", { manual: true }));
   elements.refreshResearchBtn.addEventListener("click", () =>
     refreshStream("research", { manual: true }),
@@ -192,6 +198,13 @@ function bindEvents() {
   elements.nextEntertainmentBtn.addEventListener("click", () =>
     nextBatch("entertainment", { manual: true }),
   );
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest("[data-section]");
+    const sectionId = link?.dataset?.section;
+    if (sectionId) {
+      setActiveSection(sectionId);
+    }
+  });
 }
 
 function seedFallbackFeeds() {
@@ -413,6 +426,7 @@ function renderAll() {
   STREAM_TYPES.forEach((type) => renderFeed(type));
   renderMetrics();
   renderPulseRail();
+  renderSpotlight();
 }
 
 function renderFeed(type) {
@@ -458,12 +472,15 @@ function renderFeed(type) {
     </div>
     ${items
       .map(
-        ({ title, summary, region, signal, relevance, timestamp, url, provider, linkLabel }, index) => `
+        ({ title, summary, region, signal, relevance, timestamp, url, provider, linkLabel }, index) => {
+          const heat = buildHeatState(type, index, meta);
+          return `
           <article class="${itemClass}${index === 0 ? " featured" : ""}">
             <div class="feed-item-header">
               <div class="feed-item-headline">
                 <span class="feed-priority">${index === 0 ? "TOP PICK" : "LIVE"}</span>
                 <span class="${regionTagClass}">${escapeHtml(region)}</span>
+                <span class="tag heat-tag ${escapeHtml(heat.tone)}">${escapeHtml(heat.label)}</span>
               </div>
               <span class="muted">${escapeHtml(timestamp)}</span>
             </div>
@@ -478,11 +495,13 @@ function renderFeed(type) {
               <a class="${linkClass}" href="${escapeAttribute(url)}" target="_blank" rel="noreferrer">${escapeHtml(linkLabel)}</a>
             </div>
           </article>
-        `,
+        `;
+        },
       )
       .join("")}
   `;
   renderPulseRail();
+  renderSpotlight();
 }
 
 function renderMetrics() {
@@ -518,6 +537,7 @@ function renderMetrics() {
     `娱乐: ${buildSourceLine(state.sourceMeta.entertainment)}`,
   ].join(" | ");
   renderPulseRail();
+  renderSpotlight();
 }
 
 function buildSourceLine(meta) {
@@ -654,6 +674,54 @@ function generateDigest() {
   showToastCard("今日摘要已生成", "当前简报已经根据最新信息流重组。");
 }
 
+function bindScrollExperience() {
+  window.addEventListener("scroll", updateBackToTopButton, { passive: true });
+  updateBackToTopButton();
+  setActiveSection("section-spotlight");
+
+  const sections = document.querySelectorAll("#section-spotlight, #section-world, #section-research, #section-music, #section-entertainment, #section-digest");
+  const observer = new IntersectionObserver(
+    (entries) => {
+      const visible = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+
+      if (visible?.target?.id) {
+        setActiveSection(visible.target.id);
+      }
+    },
+    {
+      root: null,
+      threshold: [0.25, 0.45, 0.7],
+      rootMargin: "-14% 0px -55% 0px",
+    },
+  );
+
+  sections.forEach((section) => observer.observe(section));
+}
+
+function updateBackToTopButton() {
+  if (!elements.backToTopBtn) return;
+  elements.backToTopBtn.classList.toggle("visible", window.scrollY > 520);
+}
+
+function scrollToTop() {
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  setActiveSection("section-spotlight");
+}
+
+function setActiveSection(sectionId) {
+  elements.jumpLinks.forEach((link) => {
+    const isActive = link.dataset.section === sectionId;
+    link.classList.toggle("is-active", isActive);
+    if (isActive) {
+      link.setAttribute("aria-current", "true");
+    } else {
+      link.removeAttribute("aria-current");
+    }
+  });
+}
+
 function showToastCard(title, message) {
   let stack = document.querySelector(".toast-stack");
   if (!stack) {
@@ -673,6 +741,90 @@ function showToastCard(title, message) {
       stack.remove();
     }
   }, 3200);
+}
+
+function renderSpotlight() {
+  const leadElement = elements.spotlightLead;
+  const railElement = elements.spotlightRail;
+  if (!leadElement || !railElement) return;
+
+  const spotlightItems = buildSpotlightItems();
+  const lead = spotlightItems[0];
+
+  if (!lead) {
+    leadElement.innerHTML = `
+      <div class="spotlight-empty">
+        <strong>主编精选准备中</strong>
+        <p>正在等待内容流完成初始化，稍后这里会自动挑出今天最值得先看的内容。</p>
+      </div>
+    `;
+    railElement.innerHTML = "";
+    return;
+  }
+
+  const leadHeat = buildHeatState(lead.type, 0, state.sourceMeta[lead.type]);
+  leadElement.innerHTML = `
+    <div class="spotlight-lead-top">
+      <span class="tag stream-chip stream-chip-${lead.type}">${escapeHtml(streamTitle(lead.type))}</span>
+      <span class="tag heat-tag ${escapeHtml(leadHeat.tone)}">${escapeHtml(leadHeat.label)}</span>
+    </div>
+    <h3>${escapeHtml(lead.title)}</h3>
+    <p>${escapeHtml(lead.summary)}</p>
+    <div class="spotlight-lead-meta">
+      <span>${escapeHtml(lead.provider)}</span>
+      <span>${escapeHtml(lead.relevance || lead.region || "持续跟进中")}</span>
+    </div>
+    <div class="spotlight-lead-actions">
+      <a class="feed-link feed-link-${lead.type}" href="${escapeAttribute(lead.url)}" target="_blank" rel="noreferrer">${escapeHtml(lead.linkLabel)}</a>
+      <a class="secondary-button spotlight-jump-button" href="#section-${lead.type}" data-section="section-${lead.type}">跳到该板块</a>
+    </div>
+  `;
+
+  railElement.innerHTML = spotlightItems
+    .slice(1)
+    .map((item) => {
+      const heat = buildHeatState(item.type, item.order, state.sourceMeta[item.type]);
+      return `
+        <article class="spotlight-mini stream-${item.type}">
+          <div class="spotlight-mini-top">
+            <span class="tag stream-chip stream-chip-${item.type}">${escapeHtml(streamTitle(item.type))}</span>
+            <span class="tag heat-tag ${escapeHtml(heat.tone)}">${escapeHtml(heat.label)}</span>
+          </div>
+          <h3>${escapeHtml(item.title)}</h3>
+          <p>${escapeHtml(item.summary)}</p>
+          <div class="spotlight-mini-actions">
+            <a href="#section-${item.type}" class="mini-link" data-section="section-${item.type}">进入板块</a>
+            <a href="${escapeAttribute(item.url)}" class="mini-link" target="_blank" rel="noreferrer">${escapeHtml(item.linkLabel)}</a>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function buildSpotlightItems() {
+  return STREAM_TYPES.map((type) => {
+    const item = state[`${type}Items`][0];
+    if (!item) return null;
+    const meta = state.sourceMeta[type];
+    return {
+      ...item,
+      type,
+      score: spotlightScore(type, item, meta),
+      mode: meta.mode,
+    };
+  })
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score)
+    .map((item, index) => ({ ...item, order: index }));
+}
+
+function spotlightScore(type, item, meta) {
+  const base = type === "world" ? 14 : type === "research" ? 13 : type === "entertainment" ? 12 : 11;
+  const liveBonus = meta.mode === "live" ? 6 : 0;
+  const titleBonus = Math.min((item.title || "").length / 24, 4);
+  const signalBonus = (item.signal || "").includes("后备") ? 0 : 2;
+  return base + liveBonus + titleBonus + signalBonus;
 }
 
 function renderPulseRail() {
@@ -771,6 +923,22 @@ function streamPulseLabel(type) {
   if (type === "research") return "Research Pulse";
   if (type === "entertainment") return "Entertainment Pulse";
   return "Music Pulse";
+}
+
+function buildHeatState(type, index, meta) {
+  if (index === 0 && meta.mode === "live") {
+    if (type === "world") return { label: "Breaking", tone: "heat-hot" };
+    if (type === "research") return { label: "Hot Paper", tone: "heat-hot" };
+    if (type === "music") return { label: "Top Chart", tone: "heat-hot" };
+    return { label: "Buzzing", tone: "heat-hot" };
+  }
+
+  if (index <= 1) {
+    if (type === "music") return { label: "Rising", tone: "heat-rising" };
+    return { label: "Trending", tone: "heat-rising" };
+  }
+
+  return { label: "Watchlist", tone: "heat-watch" };
 }
 
 function defaultProvider(type) {

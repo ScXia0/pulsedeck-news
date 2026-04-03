@@ -8,8 +8,8 @@
       content="一个暗色科技风的个人情报网页应用，持续追踪全球热点、AI/NLP 前沿、近期热门歌曲与娱乐新闻。"
     />
     <meta name="theme-color" content="#060816" />
-    <link rel="manifest" href="./manifest.webmanifest?v=9" />
-    <link rel="stylesheet" href="./styles.css?v=9" />
+    <link rel="manifest" href="./manifest.webmanifest?v=10" />
+    <link rel="stylesheet" href="./styles.css?v=10" />
     <title>XscNews</title>
   </head>
   <body>
@@ -25,10 +25,10 @@
             每天追踪全球热点、AI / NLP 前沿、近期热门歌曲和娱乐新闻，把重要信息压缩成持续推送的个人情报流。
           </p>
           <div class="hero-streams">
-            <a class="hero-stream jump-link stream-world" href="#section-world">Global Radar</a>
-            <a class="hero-stream jump-link stream-research" href="#section-research">AI Research</a>
-            <a class="hero-stream jump-link stream-music" href="#section-music">Music Heat</a>
-            <a class="hero-stream jump-link stream-entertainment" href="#section-entertainment">Entertainment Buzz</a>
+            <a class="hero-stream jump-link stream-world" href="#section-world" data-section="section-world">Global Radar</a>
+            <a class="hero-stream jump-link stream-research" href="#section-research" data-section="section-research">AI Research</a>
+            <a class="hero-stream jump-link stream-music" href="#section-music" data-section="section-music">Music Heat</a>
+            <a class="hero-stream jump-link stream-entertainment" href="#section-entertainment" data-section="section-entertainment">Entertainment Buzz</a>
           </div>
           <p class="hero-jump-hint">点上面的标签可以直接跳到对应板块。</p>
 
@@ -88,14 +88,29 @@
       </header>
 
       <nav class="quick-jump" aria-label="快速跳转">
-        <a class="quick-jump-link stream-world" href="#section-world">热点</a>
-        <a class="quick-jump-link stream-research" href="#section-research">研究</a>
-        <a class="quick-jump-link stream-music" href="#section-music">音乐</a>
-        <a class="quick-jump-link stream-entertainment" href="#section-entertainment">娱乐</a>
-        <a class="quick-jump-link stream-neutral" href="#section-digest">摘要</a>
+        <a class="quick-jump-link stream-neutral" href="#section-spotlight" data-section="section-spotlight">精选</a>
+        <a class="quick-jump-link stream-world" href="#section-world" data-section="section-world">热点</a>
+        <a class="quick-jump-link stream-research" href="#section-research" data-section="section-research">研究</a>
+        <a class="quick-jump-link stream-music" href="#section-music" data-section="section-music">音乐</a>
+        <a class="quick-jump-link stream-entertainment" href="#section-entertainment" data-section="section-entertainment">娱乐</a>
+        <a class="quick-jump-link stream-neutral" href="#section-digest" data-section="section-digest">摘要</a>
       </nav>
 
       <main class="dashboard">
+        <section id="section-spotlight" class="panel spotlight-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="panel-kicker">EDITOR'S PICK</p>
+              <h2>今日主编精选</h2>
+            </div>
+            <span class="panel-badge">LIVE CURATION</span>
+          </div>
+          <div class="spotlight-grid">
+            <article id="spotlightLead" class="spotlight-lead"></article>
+            <div id="spotlightRail" class="spotlight-rail"></div>
+          </div>
+        </section>
+
         <section class="panel signal-panel">
           <div class="panel-heading signal-heading">
             <div>
@@ -299,6 +314,10 @@
       </main>
     </div>
 
-    <script type="module" src="./app.js?v=9"></script>
+    <button id="backToTopBtn" class="back-to-top" type="button" aria-label="返回顶部">
+      回到顶部
+    </button>
+
+    <script type="module" src="./app.js?v=10"></script>
   </body>
 </html>
