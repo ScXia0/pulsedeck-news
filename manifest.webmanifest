@@ -1,6 +1,6 @@
 {
-  "name": "PulseDeck",
-  "short_name": "PulseDeck",
+  "name": "XscNews",
+  "short_name": "XscNews",
   "description": "持续追踪全球热点与 AI / NLP 前沿的暗色科技风网页应用。",
   "start_url": "./index.html",
   "display": "standalone",
