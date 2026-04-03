@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="一个暗色科技风的个人情报网页应用，持续追踪全球热点与 AI/NLP 前沿。"
+    />
+    <meta name="theme-color" content="#060816" />
+    <link rel="manifest" href="./manifest.webmanifest?v=2" />
+    <link rel="stylesheet" href="./styles.css?v=2" />
+    <title>PulseDeck</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <div class="ambient ambient-left"></div>
+      <div class="ambient ambient-right"></div>
+
+      <header class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">PERSONAL INTEL STREAM</p>
+          <h1>PulseDeck</h1>
+          <p class="hero-text">
+            每天追踪全球热点与 AI / NLP 前沿进展，把重要信息压缩成持续推送的个人情报流。
+          </p>
+
+          <div class="hero-actions">
+            <button id="notifyPermissionBtn" class="primary-button">
+              开启浏览器通知
+            </button>
+            <button id="manualDigestBtn" class="secondary-button">
+              立即生成今日摘要
+            </button>
+          </div>
+        </div>
+
+        <div class="hero-panel">
+          <div class="hero-grid">
+            <div class="metric-card">
+              <span class="metric-label">全球热点流</span>
+              <strong id="worldCount">0</strong>
+              <span id="worldNextRun" class="metric-subtle">等待启动</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">AI / NLP 流</span>
+              <strong id="researchCount">0</strong>
+              <span id="researchNextRun" class="metric-subtle">等待启动</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">推送状态</span>
+              <strong id="notificationState">未授权</strong>
+              <span id="lastDigestTime" class="metric-subtle">尚未推送</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">信息节奏</span>
+              <strong id="systemMode">智能轮询</strong>
+              <span class="metric-subtle">浏览器内持续运行</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main class="dashboard">
+        <section class="control-panel panel">
+          <div class="panel-heading">
+            <div>
+              <p class="panel-kicker">SCHEDULE</p>
+              <h2>推送控制台</h2>
+            </div>
+            <span id="dataModeBadge" class="panel-badge">CONNECTING</span>
+          </div>
+
+          <div class="control-grid">
+            <div class="setting-card">
+              <div class="setting-head">
+                <div>
+                  <h3>全球热点推送</h3>
+                  <p>聚合国际新闻、地缘热点、科技与商业事件。</p>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="worldToggle" checked />
+                  <span class="switch-track"></span>
+                </label>
+              </div>
+              <label class="field">
+                <span>更新间隔（分钟）</span>
+                <input id="worldInterval" type="number" min="1" max="1440" value="180" />
+              </label>
+            </div>
+
+            <div class="setting-card">
+              <div class="setting-head">
+                <div>
+                  <h3>AI / NLP 前沿推送</h3>
+                  <p>跟踪论文、模型、开源项目与研究成果。</p>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="researchToggle" checked />
+                  <span class="switch-track"></span>
+                </label>
+              </div>
+              <label class="field">
+                <span>更新间隔（分钟）</span>
+                <input
+                  id="researchInterval"
+                  type="number"
+                  min="1"
+                  max="1440"
+                  value="240"
+                />
+              </label>
+            </div>
+
+            <div class="setting-card full-span">
+              <div class="setting-head">
+                <div>
+                  <h3>追踪关键词</h3>
+                  <p>用于后续接入真实 API 时过滤你最关心的主题。</p>
+                </div>
+              </div>
+              <label class="field">
+                <span>关键词</span>
+                <input
+                  id="keywordInput"
+                  type="text"
+                  value="OpenAI, agent, LLM, NLP, geopolitics, startup"
+                />
+              </label>
+            </div>
+          </div>
+
+          <div class="panel-actions">
+            <button id="saveSettingsBtn" class="primary-button">保存设置并启动</button>
+            <button id="pauseAllBtn" class="ghost-button">暂停所有推送</button>
+          </div>
+          <p id="sourceSummary" class="source-summary">
+            正在连接真实新闻源和真实论文源...
+          </p>
+        </section>
+
+        <section class="feeds-grid">
+          <article class="panel feed-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="panel-kicker">GLOBAL</p>
+                <h2>世界热点</h2>
+              </div>
+              <button id="refreshWorldBtn" class="icon-button">刷新</button>
+            </div>
+            <div id="worldFeed" class="feed-list"></div>
+          </article>
+
+          <article class="panel feed-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="panel-kicker">RESEARCH</p>
+                <h2>AI / NLP 前沿</h2>
+              </div>
+              <button id="refreshResearchBtn" class="icon-button">刷新</button>
+            </div>
+            <div id="researchFeed" class="feed-list"></div>
+          </article>
+        </section>
+
+        <section class="panel digest-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="panel-kicker">DIGEST</p>
+              <h2>今日推送摘要</h2>
+            </div>
+          </div>
+          <div id="digestOutput" class="digest-output">
+            点击“立即生成今日摘要”后，这里会生成一版压缩后的简报。
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./app.js?v=2"></script>
+  </body>
+</html>
