@@ -12,6 +12,8 @@
   --accent-secondary: #7c89ff;
   --music-accent: #ff9d67;
   --music-accent-strong: #ffbe78;
+  --entertainment-accent: #ff6f9f;
+  --entertainment-accent-strong: #ff9fc7;
   --success: #6dffb2;
   --warning: #ffce6d;
   --shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
@@ -313,7 +315,7 @@ button:disabled {
 
 .control-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 18px;
 }
 
@@ -398,7 +400,7 @@ button:disabled {
 
 .feeds-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 22px;
 }
 
@@ -507,6 +509,11 @@ button:disabled {
   color: var(--music-accent-strong);
 }
 
+.tag.entertainment {
+  background: rgba(255, 111, 159, 0.12);
+  color: var(--entertainment-accent-strong);
+}
+
 .digest-output {
   min-height: 152px;
   border-radius: var(--radius-lg);
@@ -547,7 +554,7 @@ button:disabled {
 @media (max-width: 980px) {
   .hero,
   .control-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .feeds-grid {
@@ -571,6 +578,7 @@ button:disabled {
   }
 
   .hero-grid,
+  .control-grid,
   .feeds-grid {
     grid-template-columns: 1fr;
   }

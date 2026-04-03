@@ -135,13 +135,58 @@ export const musicHotTracks = [
   },
 ];
 
-export function buildDigest(worldItems, researchItems, musicItems, keywords) {
+export const entertainmentHotTopics = [
+  {
+    title: "流媒体平台新剧与续订消息持续升温",
+    summary:
+      "平台竞争让新剧上线、续订、撤档和制作动向都变成高频娱乐新闻来源。",
+    category: "Streaming",
+    signal: "后备数据",
+    relevance: "平台内容策略、剧集续订、档期变动",
+  },
+  {
+    title: "电影票房与口碑表现继续牵动娱乐讨论",
+    summary:
+      "票房走势、观众口碑和奖项预期通常会一起推动片方宣传和社交媒体热度。",
+    category: "Box Office",
+    signal: "后备数据",
+    relevance: "票房表现、口碑发酵、奖项风向",
+  },
+  {
+    title: "明星合作、官宣和红毯话题仍是流量中心",
+    summary:
+      "明星合作、出演确认和公开活动造型，往往是娱乐内容池里最容易快速扩散的板块。",
+    category: "Celebrity",
+    signal: "后备数据",
+    relevance: "红毯活动、演员官宣、合作话题",
+  },
+  {
+    title: "综艺与真人秀进入新一轮内容竞争",
+    summary:
+      "热门综艺和真人秀的新季、嘉宾阵容与播出安排，正在持续制造社交平台讨论。",
+    category: "Variety Show",
+    signal: "后备数据",
+    relevance: "嘉宾阵容、播出安排、社交讨论",
+  },
+  {
+    title: "奖项季前哨消息会提前带动娱乐热度",
+    summary:
+      "从提名预测到首波奖项结果，奖项季前哨信息经常成为娱乐媒体的重要更新来源。",
+    category: "Awards",
+    signal: "后备数据",
+    relevance: "提名预测、奖项前哨、口碑趋势",
+  },
+];
+
+export function buildDigest(worldItems, researchItems, musicItems, entertainmentItems, keywords) {
   const world = worldItems[0];
   const research = researchItems[0];
   const music = musicItems[0];
+  const entertainment = entertainmentItems[0];
   const secondWorld = worldItems[1];
   const secondResearch = researchItems[1];
   const secondMusic = musicItems[1];
+  const secondEntertainment = entertainmentItems[1];
 
   return [
     "今日情报简报",
@@ -161,8 +206,13 @@ export function buildDigest(worldItems, researchItems, musicItems, keywords) {
     `补充线索: ${secondMusic?.title || "暂无补充线索"}`,
     `热度线索: ${music?.signal || "待补充"}`,
     "",
-    `4. 当前追踪关键词: ${keywords || "未设置"}`,
+    `4. 娱乐新闻重点: ${entertainment?.title || "暂无"}`,
+    `摘要: ${entertainment?.summary || "暂无摘要"}`,
+    `补充线索: ${secondEntertainment?.title || "暂无补充线索"}`,
+    `关注面: ${entertainment?.relevance || "待补充"}`,
     "",
-    "注: 当前版本已经优先连接真实新闻源、真实论文源和音乐榜单源；如果网络或源站异常，会自动回退到本地后备数据，确保页面始终可用。",
+    `5. 当前追踪关键词: ${keywords || "未设置"}`,
+    "",
+    "注: 当前版本已经优先连接真实新闻源、真实论文源、音乐榜单源和娱乐新闻源；如果网络或源站异常，会自动回退到本地后备数据，确保页面始终可用。",
   ].join("\n");
 }

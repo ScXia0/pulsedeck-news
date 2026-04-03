@@ -1,4 +1,10 @@
-import { buildDigest, musicHotTracks, researchHotTopics, worldHotTopics } from "./data.js";
+import {
+  buildDigest,
+  entertainmentHotTopics,
+  musicHotTracks,
+  researchHotTopics,
+  worldHotTopics,
+} from "./data.js";
 
 const STORAGE_KEY = "pulse-deck-settings";
 const DEFAULT_SETTINGS = {
@@ -8,55 +14,66 @@ const DEFAULT_SETTINGS = {
   researchInterval: 240,
   musicEnabled: true,
   musicInterval: 300,
+  entertainmentEnabled: true,
+  entertainmentInterval: 210,
   keywords: "OpenAI, agent, LLM, NLP, geopolitics, startup",
 };
 const DEFAULT_BATCH_SIZE = 6;
-const STREAM_TYPES = ["world", "research", "music"];
+const STREAM_TYPES = ["world", "research", "music", "entertainment"];
 
 const state = {
   settings: loadSettings(),
   worldItems: [],
   researchItems: [],
   musicItems: [],
+  entertainmentItems: [],
   pools: {
     world: [],
     research: [],
     music: [],
+    entertainment: [],
   },
   seenIds: {
     world: new Set(),
     research: new Set(),
     music: new Set(),
+    entertainment: new Set(),
   },
   timers: {
     world: null,
     research: null,
     music: null,
+    entertainment: null,
   },
   nextRuns: {
     world: null,
     research: null,
     music: null,
+    entertainment: null,
   },
   loading: {
     world: false,
     research: false,
     music: false,
+    entertainment: false,
   },
   batchSize: {
     world: DEFAULT_BATCH_SIZE,
     research: DEFAULT_BATCH_SIZE,
     music: DEFAULT_BATCH_SIZE,
+    entertainment: DEFAULT_BATCH_SIZE,
   },
   sourceMeta: {
     world: fallbackMeta("本地后备"),
     research: fallbackMeta("本地后备"),
     music: fallbackMeta("本地后备"),
+    entertainment: fallbackMeta("本地后备"),
   },
   latestNotifiedId: {
     world: null,
     research: null,
     music: null,
+    entertainment: null,
   },
 };
 
@@ -68,26 +85,33 @@ const elements = {
   refreshWorldBtn: document.querySelector("#refreshWorldBtn"),
   refreshResearchBtn: document.querySelector("#refreshResearchBtn"),
   refreshMusicBtn: document.querySelector("#refreshMusicBtn"),
+  refreshEntertainmentBtn: document.querySelector("#refreshEntertainmentBtn"),
   nextWorldBtn: document.querySelector("#nextWorldBtn"),
   nextResearchBtn: document.querySelector("#nextResearchBtn"),
   nextMusicBtn: document.querySelector("#nextMusicBtn"),
+  nextEntertainmentBtn: document.querySelector("#nextEntertainmentBtn"),
   worldToggle: document.querySelector("#worldToggle"),
   researchToggle: document.querySelector("#researchToggle"),
   musicToggle: document.querySelector("#musicToggle"),
+  entertainmentToggle: document.querySelector("#entertainmentToggle"),
   worldInterval: document.querySelector("#worldInterval"),
   researchInterval: document.querySelector("#researchInterval"),
   musicInterval: document.querySelector("#musicInterval"),
+  entertainmentInterval: document.querySelector("#entertainmentInterval"),
   keywordInput: document.querySelector("#keywordInput"),
   worldFeed: document.querySelector("#worldFeed"),
   researchFeed: document.querySelector("#researchFeed"),
   musicFeed: document.querySelector("#musicFeed"),
+  entertainmentFeed: document.querySelector("#entertainmentFeed"),
   digestOutput: document.querySelector("#digestOutput"),
   worldCount: document.querySelector("#worldCount"),
   researchCount: document.querySelector("#researchCount"),
   musicCount: document.querySelector("#musicCount"),
+  entertainmentCount: document.querySelector("#entertainmentCount"),
   worldNextRun: document.querySelector("#worldNextRun"),
   researchNextRun: document.querySelector("#researchNextRun"),
   musicNextRun: document.querySelector("#musicNextRun"),
+  entertainmentNextRun: document.querySelector("#entertainmentNextRun"),
   notificationState: document.querySelector("#notificationState"),
   systemMode: document.querySelector("#systemMode"),
   lastDigestTime: document.querySelector("#lastDigestTime"),
@@ -137,9 +161,11 @@ function syncControlsFromSettings() {
   elements.worldToggle.checked = state.settings.worldEnabled;
   elements.researchToggle.checked = state.settings.researchEnabled;
   elements.musicToggle.checked = state.settings.musicEnabled;
+  elements.entertainmentToggle.checked = state.settings.entertainmentEnabled;
   elements.worldInterval.value = state.settings.worldInterval;
   elements.researchInterval.value = state.settings.researchInterval;
   elements.musicInterval.value = state.settings.musicInterval;
+  elements.entertainmentInterval.value = state.settings.entertainmentInterval;
   elements.keywordInput.value = state.settings.keywords;
 }
 
@@ -153,9 +179,15 @@ function bindEvents() {
     refreshStream("research", { manual: true }),
   );
   elements.refreshMusicBtn.addEventListener("click", () => refreshStream("music", { manual: true }));
+  elements.refreshEntertainmentBtn.addEventListener("click", () =>
+    refreshStream("entertainment", { manual: true }),
+  );
   elements.nextWorldBtn.addEventListener("click", () => nextBatch("world", { manual: true }));
   elements.nextResearchBtn.addEventListener("click", () => nextBatch("research", { manual: true }));
   elements.nextMusicBtn.addEventListener("click", () => nextBatch("music", { manual: true }));
+  elements.nextEntertainmentBtn.addEventListener("click", () =>
+    nextBatch("entertainment", { manual: true }),
+  );
 }
 
 function seedFallbackFeeds() {
@@ -173,7 +205,13 @@ function seedFallbackFeeds() {
 
 function buildFallbackItems(type) {
   const source =
-    type === "world" ? worldHotTopics : type === "research" ? researchHotTopics : musicHotTracks;
+    type === "world"
+      ? worldHotTopics
+      : type === "research"
+        ? researchHotTopics
+        : type === "music"
+          ? musicHotTracks
+          : entertainmentHotTopics;
 
   return source.map((item, index) => ({
     id: `fallback-${type}-${index}`,
@@ -183,7 +221,14 @@ function buildFallbackItems(type) {
     url: buildItemLink(type, item.title, "", item.artist || ""),
     provider: "本地后备",
     linkLabel: buildLinkLabel(type, ""),
-    region: type === "world" ? item.region : type === "research" ? item.domain : item.genre,
+    region:
+      type === "world"
+        ? item.region
+        : type === "research"
+          ? item.domain
+          : type === "music"
+            ? item.genre
+            : item.category,
     signal: item.signal,
     relevance: item.relevance || item.artist || "",
   }));
@@ -319,7 +364,9 @@ function normalizeItems(type, items = []) {
         ? item.region || "Global"
         : type === "research"
           ? item.domain || "Research"
-          : item.genre || item.region || "Trending",
+          : type === "music"
+            ? item.genre || item.region || "Trending"
+            : item.category || item.region || "Entertainment",
     signal: item.signal || defaultSignal(type),
     relevance: item.relevance || item.artist || "",
   }));
@@ -337,6 +384,10 @@ function buildItemLink(type, title, existingUrl, extra = "") {
     return `https://www.semanticscholar.org/search?q=${query}&sort=relevance`;
   }
 
+  if (type === "entertainment") {
+    return `https://www.bing.com/news/search?q=${query}`;
+  }
+
   return `https://www.youtube.com/results?search_query=${query}%20official%20audio`;
 }
 
@@ -344,11 +395,13 @@ function buildLinkLabel(type, existingUrl) {
   if (existingUrl) {
     if (type === "world") return "查看原文";
     if (type === "research") return "查看论文";
+    if (type === "entertainment") return "查看新闻";
     return "听歌 / 视频";
   }
 
   if (type === "world") return "查看线索";
   if (type === "research") return "搜索论文";
+  if (type === "entertainment") return "查看娱乐线索";
   return "搜索歌曲";
 }
 
@@ -362,9 +415,21 @@ function renderFeed(type) {
   const items = state[`${type}Items`];
   const meta = state.sourceMeta[type];
   const regionLabel =
-    type === "world" ? "影响面" : type === "research" ? "落地方向" : "热度线索";
+    type === "world"
+      ? "影响面"
+      : type === "research"
+        ? "落地方向"
+        : type === "music"
+          ? "热度线索"
+          : "关注面";
   const signalClass =
-    type === "world" ? "warning" : type === "research" ? "success" : "music";
+    type === "world"
+      ? "warning"
+      : type === "research"
+        ? "success"
+        : type === "music"
+          ? "music"
+          : "entertainment";
 
   if (state.loading[type] && !items.length) {
     container.innerHTML = '<div class="empty-state">正在构建多源内容池...</div>';
@@ -412,23 +477,31 @@ function renderMetrics() {
     state.sourceMeta.research.poolSize || state.pools.research.length,
   );
   elements.musicCount.textContent = String(state.sourceMeta.music.poolSize || state.pools.music.length);
+  elements.entertainmentCount.textContent = String(
+    state.sourceMeta.entertainment.poolSize || state.pools.entertainment.length,
+  );
   elements.worldNextRun.textContent = formatNextRunText(state.nextRuns.world, state.settings.worldEnabled);
   elements.researchNextRun.textContent = formatNextRunText(
     state.nextRuns.research,
     state.settings.researchEnabled,
   );
   elements.musicNextRun.textContent = formatNextRunText(state.nextRuns.music, state.settings.musicEnabled);
+  elements.entertainmentNextRun.textContent = formatNextRunText(
+    state.nextRuns.entertainment,
+    state.settings.entertainmentEnabled,
+  );
 
   const liveCount = STREAM_TYPES.map((type) => state.sourceMeta[type]).filter(
     (entry) => entry.mode === "live",
   ).length;
-  elements.systemMode.textContent = liveCount === STREAM_TYPES.length ? "三流轮换" : "混合模式";
+  elements.systemMode.textContent = liveCount === STREAM_TYPES.length ? "四流轮换" : "混合模式";
   elements.dataModeBadge.textContent =
-    liveCount === STREAM_TYPES.length ? "3 STREAMS LIVE" : "MIXED SOURCES";
+    liveCount === STREAM_TYPES.length ? "4 STREAMS LIVE" : "MIXED SOURCES";
   elements.sourceSummary.textContent = [
     `热点: ${buildSourceLine(state.sourceMeta.world)}`,
     `研究: ${buildSourceLine(state.sourceMeta.research)}`,
     `音乐: ${buildSourceLine(state.sourceMeta.music)}`,
+    `娱乐: ${buildSourceLine(state.sourceMeta.entertainment)}`,
   ].join(" | ");
 }
 
@@ -446,9 +519,11 @@ function handleSaveSettings() {
     worldEnabled: elements.worldToggle.checked,
     researchEnabled: elements.researchToggle.checked,
     musicEnabled: elements.musicToggle.checked,
+    entertainmentEnabled: elements.entertainmentToggle.checked,
     worldInterval: clampMinutes(elements.worldInterval.value),
     researchInterval: clampMinutes(elements.researchInterval.value),
     musicInterval: clampMinutes(elements.musicInterval.value),
+    entertainmentInterval: clampMinutes(elements.entertainmentInterval.value),
     keywords: elements.keywordInput.value.trim(),
   };
   syncControlsFromSettings();
@@ -467,7 +542,7 @@ function pauseAllSchedules() {
   syncControlsFromSettings();
   saveSettings();
   renderMetrics();
-  showToastCard("推送已暂停", "三个信息流都已停止自动更新。");
+  showToastCard("推送已暂停", "四个信息流都已停止自动更新。");
 }
 
 function startSchedulers() {
@@ -555,6 +630,7 @@ function generateDigest() {
     state.worldItems,
     state.researchItems,
     state.musicItems,
+    state.entertainmentItems,
     state.settings.keywords,
   );
   elements.digestOutput.textContent = digest;
@@ -594,30 +670,35 @@ function registerServiceWorker() {
 function streamTitle(type) {
   if (type === "world") return "世界热点";
   if (type === "research") return "AI / NLP 前沿";
+  if (type === "entertainment") return "娱乐新闻";
   return "近期热门歌曲";
 }
 
 function streamShortName(type) {
   if (type === "world") return "新闻池";
   if (type === "research") return "研究池";
+  if (type === "entertainment") return "娱乐池";
   return "音乐池";
 }
 
 function streamNotificationTitle(type) {
   if (type === "world") return "全球热点更新";
   if (type === "research") return "AI / NLP 前沿更新";
+  if (type === "entertainment") return "娱乐新闻更新";
   return "热门歌曲更新";
 }
 
 function defaultProvider(type) {
   if (type === "world") return "新闻源";
   if (type === "research") return "论文源";
+  if (type === "entertainment") return "娱乐媒体";
   return "音乐榜单";
 }
 
 function defaultSignal(type) {
   if (type === "world") return "多源资讯";
   if (type === "research") return "实时更新";
+  if (type === "entertainment") return "娱乐资讯";
   return "热歌榜单";
 }
 

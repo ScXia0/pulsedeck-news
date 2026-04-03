@@ -28,6 +28,7 @@ CACHE_TTL_SECONDS = 20 * 60
 WORLD_POOL_LIMIT = 48
 RESEARCH_POOL_LIMIT = 42
 MUSIC_POOL_LIMIT = 54
+ENTERTAINMENT_POOL_LIMIT = 48
 BATCH_SIZE = 6
 ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
 REQUEST_HEADERS = {
@@ -236,6 +237,69 @@ MUSIC_FALLBACK = [
     },
 ]
 
+ENTERTAINMENT_FALLBACK = [
+    {
+        "id": "entertainment-fallback-1",
+        "title": "流媒体平台新剧动态继续带动娱乐关注",
+        "summary": "从上线排期到续订消息，平台内容节奏依旧是娱乐新闻里最稳定的热点来源。",
+        "category": "Streaming",
+        "signal": "后备数据",
+        "relevance": "平台上新、续订节奏、话题发酵",
+        "timestamp": "本地后备",
+        "url": "https://www.bing.com/news/search?q=streaming+series+entertainment+news",
+        "provider": "本地后备",
+        "linkLabel": "查看娱乐线索",
+    },
+    {
+        "id": "entertainment-fallback-2",
+        "title": "电影票房与口碑表现仍在牵动文娱讨论",
+        "summary": "票房走势、媒体评价和观众反馈会直接影响新片后续宣传与社交传播强度。",
+        "category": "Box Office",
+        "signal": "后备数据",
+        "relevance": "票房、口碑、宣传节奏",
+        "timestamp": "本地后备",
+        "url": "https://www.bing.com/news/search?q=box+office+movie+entertainment+news",
+        "provider": "本地后备",
+        "linkLabel": "查看娱乐线索",
+    },
+    {
+        "id": "entertainment-fallback-3",
+        "title": "明星官宣与合作项目持续制造娱乐流量",
+        "summary": "演员加盟、合作确认和公开活动仍是最容易形成扩散的娱乐新闻类型。",
+        "category": "Celebrity",
+        "signal": "后备数据",
+        "relevance": "官宣、合作、公开活动",
+        "timestamp": "本地后备",
+        "url": "https://www.bing.com/news/search?q=celebrity+entertainment+news",
+        "provider": "本地后备",
+        "linkLabel": "查看娱乐线索",
+    },
+    {
+        "id": "entertainment-fallback-4",
+        "title": "奖项前哨与提名预测开始抬升讨论度",
+        "summary": "娱乐媒体对提名预测、首波获奖名单和红毯前哨的跟进通常会非常密集。",
+        "category": "Awards",
+        "signal": "后备数据",
+        "relevance": "提名预测、颁奖季、红毯话题",
+        "timestamp": "本地后备",
+        "url": "https://www.bing.com/news/search?q=awards+season+entertainment+news",
+        "provider": "本地后备",
+        "linkLabel": "查看娱乐线索",
+    },
+    {
+        "id": "entertainment-fallback-5",
+        "title": "综艺与真人秀新季消息保持高讨论",
+        "summary": "嘉宾阵容、播出时间和节目机制变化经常会在社交平台快速扩散。",
+        "category": "Variety Show",
+        "signal": "后备数据",
+        "relevance": "新季、嘉宾阵容、社交讨论",
+        "timestamp": "本地后备",
+        "url": "https://www.bing.com/news/search?q=variety+show+entertainment+news",
+        "provider": "本地后备",
+        "linkLabel": "查看娱乐线索",
+    },
+]
+
 WORLD_RSS_SOURCES = [
     {"provider": "BBC World", "url": "https://feeds.bbci.co.uk/news/world/rss.xml", "region": "World"},
     {"provider": "BBC Business", "url": "https://feeds.bbci.co.uk/news/business/rss.xml", "region": "Business"},
@@ -349,6 +413,30 @@ MUSIC_BILLBOARD_SOURCES = [
     },
 ]
 
+ENTERTAINMENT_RSS_SOURCES = [
+    {
+        "provider": "BBC Entertainment",
+        "url": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
+        "category": "Entertainment",
+    },
+    {"provider": "Guardian Film", "url": "https://www.theguardian.com/film/rss", "category": "Film"},
+    {"provider": "Guardian TV", "url": "https://www.theguardian.com/tv-and-radio/rss", "category": "TV"},
+    {"provider": "NYT Arts", "url": "https://rss.nytimes.com/services/xml/rss/nyt/Arts.xml", "category": "Arts"},
+    {
+        "provider": "NYT Movies",
+        "url": "https://rss.nytimes.com/services/xml/rss/nyt/Movies.xml",
+        "category": "Movies",
+    },
+]
+
+ENTERTAINMENT_GOOGLE_QUERIES = [
+    ("Streaming", '"streaming series" OR Netflix OR Disney OR HBO OR trailer'),
+    ("Celebrity", '"celebrity" OR actor OR actress OR red carpet'),
+    ("Awards", '"awards season" OR Emmy OR Oscar OR Grammy'),
+    ("Box Office", '"box office" OR movie release OR casting'),
+    ("TV Shows", '"tv series" OR finale OR renewal OR cancellation'),
+]
+
 feed_cache: dict[tuple[str, str], dict[str, Any]] = {}
 
 
@@ -368,7 +456,7 @@ class PulseDeckHandler(SimpleHTTPRequestHandler):
             self.respond_json({"status": "ok", "time": utc_now_iso()})
             return
 
-        if parsed.path in {"/api/world", "/api/research", "/api/music"}:
+        if parsed.path in {"/api/world", "/api/research", "/api/music", "/api/entertainment"}:
             query = parse_qs(parsed.query)
             keywords = normalize_keywords(query.get("keywords", [""])[0])
             force_refresh = query.get("force", ["0"])[0] == "1"
@@ -376,8 +464,10 @@ class PulseDeckHandler(SimpleHTTPRequestHandler):
                 feed_type = "world"
             elif parsed.path.endswith("/research"):
                 feed_type = "research"
-            else:
+            elif parsed.path.endswith("/music"):
                 feed_type = "music"
+            else:
+                feed_type = "entertainment"
             payload = get_cached_feed(feed_type, keywords, force_refresh=force_refresh)
             self.respond_json(payload)
             return
@@ -406,8 +496,10 @@ def get_cached_feed(feed_type: str, keywords: list[str], force_refresh: bool = F
         payload = build_world_feed_payload(keywords)
     elif feed_type == "research":
         payload = build_research_feed_payload(keywords)
-    else:
+    elif feed_type == "music":
         payload = build_music_feed_payload()
+    else:
+        payload = build_entertainment_feed_payload(keywords)
     feed_cache[cache_key] = {"stored_at": now, "payload": payload}
     return payload
 
@@ -479,6 +571,27 @@ def build_music_feed_payload() -> dict[str, Any]:
     }
 
 
+def build_entertainment_feed_payload(keywords: list[str]) -> dict[str, Any]:
+    sources = build_entertainment_sources(keywords)
+    items, errors = gather_source_items(sources, fetch_entertainment_source, max_workers=6)
+    pool = diversify_and_limit(dedupe_items(items), ENTERTAINMENT_POOL_LIMIT)
+
+    if not pool:
+        return fallback_payload("entertainment", errors)
+
+    providers = summarize_providers(pool)
+    return {
+        "mode": "live",
+        "provider": f"{len(providers)} 个娱乐资讯源",
+        "providers": providers,
+        "fetchedAt": utc_now_iso(),
+        "error": summarize_errors(errors),
+        "poolSize": len(pool),
+        "batchSize": BATCH_SIZE,
+        "items": pool,
+    }
+
+
 def fallback_payload(feed_type: str, errors: list[str]) -> dict[str, Any]:
     items = (
         WORLD_FALLBACK
@@ -486,6 +599,8 @@ def fallback_payload(feed_type: str, errors: list[str]) -> dict[str, Any]:
         else RESEARCH_FALLBACK
         if feed_type == "research"
         else MUSIC_FALLBACK
+        if feed_type == "music"
+        else ENTERTAINMENT_FALLBACK
     )
     providers = summarize_providers(items)
     label = "本地后备"
@@ -568,6 +683,34 @@ def build_research_sources(keywords: list[str]) -> list[dict[str, Any]]:
                 "query": quote_phrase(keyword),
             }
         )
+
+    return sources
+
+
+def build_entertainment_sources(keywords: list[str]) -> list[dict[str, Any]]:
+    sources = [{"kind": "rss", **source} for source in ENTERTAINMENT_RSS_SOURCES]
+
+    for label, query in ENTERTAINMENT_GOOGLE_QUERIES:
+        sources.append(
+            {
+                "kind": "rss",
+                "provider": f"Google News {label}",
+                "url": build_google_news_url(query),
+                "category": label,
+            }
+        )
+
+    for keyword in keywords[:3]:
+        lowered = keyword.lower()
+        if any(marker in lowered for marker in ("movie", "film", "tv", "show", "celebrity", "music", "drama", "streaming", "actor")):
+            sources.append(
+                {
+                    "kind": "rss",
+                    "provider": f"Google News {keyword[:20]}",
+                    "url": build_google_news_url(quote_phrase(keyword)),
+                    "category": "Keyword",
+                }
+            )
 
     return sources
 
@@ -657,6 +800,14 @@ def fetch_music_source(source: dict[str, Any]) -> list[dict[str, Any]]:
             chart=source["chart"],
             genre=source["genre"],
         )
+
+    return []
+
+
+def fetch_entertainment_source(source: dict[str, Any]) -> list[dict[str, Any]]:
+    if source["kind"] == "rss":
+        xml_text = fetch_text(source["url"], timeout=8)
+        return parse_rss_feed(xml_text, source["provider"], source.get("category", "Entertainment"))
 
     return []
 

@@ -1,7 +1,7 @@
 {
   "name": "XscNews",
   "short_name": "XscNews",
-  "description": "持续追踪全球热点、AI / NLP 前沿与近期热门歌曲的暗色科技风网页应用。",
+  "description": "持续追踪全球热点、AI / NLP 前沿、近期热门歌曲与娱乐新闻的暗色科技风网页应用。",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#050816",
