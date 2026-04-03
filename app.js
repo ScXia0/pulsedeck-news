@@ -9,6 +9,7 @@ import {
 const STORAGE_KEY = "pulse-deck-settings";
 const DESK_STORAGE_KEY = "xscnews-desk-state";
 const VIEW_STORAGE_KEY = "xscnews-view-state";
+const PROFILE_STORAGE_KEY = "xscnews-profile-state";
 const DEFAULT_SETTINGS = {
   worldEnabled: true,
   worldInterval: 180,
@@ -22,6 +23,31 @@ const DEFAULT_SETTINGS = {
 };
 const DEFAULT_BATCH_SIZE = 6;
 const STREAM_TYPES = ["world", "research", "music", "entertainment"];
+const PERSONALIZATION_STOP_WORDS = new Set([
+  "about",
+  "after",
+  "agent",
+  "analysis",
+  "breaking",
+  "briefing",
+  "from",
+  "global",
+  "have",
+  "latest",
+  "more",
+  "music",
+  "news",
+  "official",
+  "paper",
+  "research",
+  "stream",
+  "their",
+  "today",
+  "trend",
+  "watch",
+  "with",
+  "world",
+]);
 const DEFAULT_VIEW_STATE = {
   query: "",
   scope: "all",
@@ -47,6 +73,7 @@ const state = {
   settings: loadSettings(),
   desk: loadDeskState(),
   view: loadViewState(),
+  profile: loadProfileState(),
   worldItems: [],
   researchItems: [],
   musicItems: [],
@@ -255,6 +282,55 @@ function saveViewState() {
   localStorage.setItem(VIEW_STORAGE_KEY, JSON.stringify(state.view));
 }
 
+function loadProfileState() {
+  try {
+    const raw = localStorage.getItem(PROFILE_STORAGE_KEY);
+    if (!raw) {
+      return {
+        streamWeights: createDefaultStreamWeights(),
+        termWeights: {},
+        termLabels: {},
+        opened: {},
+        lastInteractedType: null,
+      };
+    }
+
+    const parsed = JSON.parse(raw);
+    return {
+      streamWeights: {
+        ...createDefaultStreamWeights(),
+        ...(parsed.streamWeights || {}),
+      },
+      termWeights: parsed.termWeights || {},
+      termLabels: parsed.termLabels || {},
+      opened: parsed.opened || {},
+      lastInteractedType: parsed.lastInteractedType || null,
+    };
+  } catch {
+    return {
+      streamWeights: createDefaultStreamWeights(),
+      termWeights: {},
+      termLabels: {},
+      opened: {},
+      lastInteractedType: null,
+    };
+  }
+}
+
+function saveProfileState() {
+  pruneProfileState();
+  localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(state.profile));
+}
+
+function createDefaultStreamWeights() {
+  return {
+    world: 0,
+    research: 0,
+    music: 0,
+    entertainment: 0,
+  };
+}
+
 function syncControlsFromSettings() {
   elements.worldToggle.checked = state.settings.worldEnabled;
   elements.researchToggle.checked = state.settings.researchEnabled;
@@ -323,6 +399,11 @@ function bindEvents() {
     if (viewButton) {
       handleViewAction(viewButton);
       return;
+    }
+
+    const trackedLink = event.target.closest("[data-track-link]");
+    if (trackedLink) {
+      trackItemVisit(trackedLink);
     }
 
     const link = event.target.closest("[data-section]");
@@ -583,6 +664,7 @@ function toggleDeskShelf(shelf, type, item) {
   }
 
   state.desk[shelf][key] = serializeDeskItem(type, item);
+  recordInterest(type, item, { weight: shelf === "saved" ? 5 : 3.5 });
   saveDeskState();
   return true;
 }
@@ -597,6 +679,7 @@ function dismissDeskItem(type, item) {
   };
   delete state.desk.saved[key];
   delete state.desk.later[key];
+  reduceInterest(type, item, 2.5);
   saveDeskState();
 }
 
@@ -648,6 +731,17 @@ function handleDeskAction(button) {
       showToastCard("已从情报桌移除", item.title);
     }
   }
+}
+
+function trackItemVisit(link) {
+  const type = link.dataset.type;
+  const itemId = link.dataset.itemId;
+  if (!type || !itemId) return;
+
+  const item = findItem(type, itemId) || findDeskItem(type, itemId);
+  if (!item) return;
+
+  recordInterest(type, item, { weight: 2.8 });
 }
 
 function findItem(type, itemId) {
@@ -791,8 +885,180 @@ function scoreItem(type, item) {
   if (state.desk.saved[key]) score += 8;
   if (state.desk.later[key]) score += 5;
   if ((item.signal || "").includes("后备")) score -= 2;
+  score += getProfileAffinity(type, item).score;
 
   return score;
+}
+
+function getProfileAffinity(type, item) {
+  const profileSignals = buildProfileSignals(item);
+  const streamScore = Math.min((state.profile.streamWeights[type] || 0) * 0.4, 6);
+  const matchedSignals = profileSignals
+    .map((signal) => ({
+      ...signal,
+      weight: state.profile.termWeights[signal.key] || 0,
+    }))
+    .filter((signal) => signal.weight > 0.4)
+    .sort((first, second) => second.weight - first.weight);
+  const tokenScore = Math.min(
+    matchedSignals.slice(0, 3).reduce((sum, signal) => sum + signal.weight, 0) * 0.9,
+    10,
+  );
+  const repeatScore = Math.min((state.profile.opened[buildDeskKey(type, item.id)] || 0) * 1.4, 4);
+  const recentStreamBonus = state.profile.lastInteractedType === type ? 1.6 : 0;
+
+  return {
+    score: streamScore + tokenScore + repeatScore + recentStreamBonus,
+    matchedSignals,
+  };
+}
+
+function buildProfileSignals(item) {
+  const signals = [];
+  const seen = new Set();
+  const fields = [item.provider, item.region, item.relevance, item.signal];
+
+  fields
+    .filter(Boolean)
+    .forEach((value) => {
+      const label = String(value).trim();
+      const key = normalizeSignalKey(label);
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      signals.push({ key, label });
+    });
+
+  const sourceText = [item.title, item.summary]
+    .filter(Boolean)
+    .join(" ");
+  const matches = sourceText.match(/[A-Za-z][A-Za-z0-9+/.-]{2,}/g) || [];
+  matches.slice(0, 10).forEach((token) => {
+    const label = token.trim();
+    const key = normalizeSignalKey(label);
+    if (!key || seen.has(key) || PERSONALIZATION_STOP_WORDS.has(key)) return;
+    seen.add(key);
+    signals.push({ key, label });
+  });
+
+  return signals;
+}
+
+function normalizeSignalKey(value) {
+  return String(value).trim().toLowerCase().replace(/\s+/g, " ").slice(0, 64);
+}
+
+function recordInterest(type, item, { weight = 1 } = {}) {
+  state.profile.streamWeights[type] = (state.profile.streamWeights[type] || 0) + weight;
+  state.profile.lastInteractedType = type;
+  const itemKey = buildDeskKey(type, item.id);
+  state.profile.opened[itemKey] = (state.profile.opened[itemKey] || 0) + 1;
+
+  buildProfileSignals(item).forEach((signal, index) => {
+    const delta = Math.max(weight - index * 0.18, 0.35);
+    state.profile.termWeights[signal.key] = (state.profile.termWeights[signal.key] || 0) + delta;
+    state.profile.termLabels[signal.key] = signal.label;
+  });
+
+  saveProfileState();
+}
+
+function reduceInterest(type, item, weight = 1) {
+  state.profile.streamWeights[type] = Math.max((state.profile.streamWeights[type] || 0) - weight, 0);
+  buildProfileSignals(item).forEach((signal) => {
+    if (!state.profile.termWeights[signal.key]) return;
+    state.profile.termWeights[signal.key] = Math.max(state.profile.termWeights[signal.key] - weight, 0);
+  });
+  saveProfileState();
+}
+
+function pruneProfileState() {
+  const topTerms = Object.entries(state.profile.termWeights)
+    .filter(([, value]) => value > 0.2)
+    .sort((first, second) => second[1] - first[1])
+    .slice(0, 140);
+  state.profile.termWeights = Object.fromEntries(topTerms);
+  state.profile.termLabels = Object.fromEntries(
+    topTerms.map(([key]) => [key, state.profile.termLabels[key] || key]),
+  );
+  const topOpened = Object.entries(state.profile.opened)
+    .sort((first, second) => second[1] - first[1])
+    .slice(0, 160);
+  state.profile.opened = Object.fromEntries(topOpened);
+}
+
+function buildRecommendationReason(type, item) {
+  const reasons = [];
+  const key = buildDeskKey(type, item.id);
+  const focusTerms = state.settings.keywords
+    .split(",")
+    .map((term) => term.trim())
+    .filter(Boolean);
+  const text = [item.title, item.summary, item.provider, item.region, item.relevance]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (state.desk.saved[key]) reasons.push("已加入你的收藏夹");
+  if (state.desk.later[key]) reasons.push("已进入稍后看");
+  if (state.profile.streamWeights[type] > 4) reasons.push(`你最近偏爱${streamTitle(type)}`);
+
+  const keywordHit = focusTerms.find((term) => text.includes(term.toLowerCase()));
+  if (keywordHit) {
+    reasons.push(`命中关键词 ${keywordHit}`);
+  }
+
+  const affinity = getProfileAffinity(type, item);
+  if (!keywordHit && affinity.matchedSignals.length) {
+    reasons.push(
+      `和你常看的 ${affinity.matchedSignals
+        .slice(0, 2)
+        .map((signal) => signal.label)
+        .join(" / ")} 接近`,
+    );
+  }
+
+  if (!reasons.length && !(item.signal || "").includes("后备")) {
+    reasons.push("实时池中优先级较高");
+  }
+
+  return reasons[0] || "适合继续关注";
+}
+
+function buildCoverLabel(type) {
+  if (type === "world") return "Global Dispatch";
+  if (type === "research") return "Lab Notes";
+  if (type === "music") return "Now Spinning";
+  return "Culture Watch";
+}
+
+function buildCoverCaption(type, item) {
+  if (type === "research") return item.relevance || item.region || item.provider;
+  if (type === "music") return item.relevance || item.provider || item.region;
+  return item.provider || item.region || item.relevance;
+}
+
+function buildCoverToken(type, item) {
+  const raw = type === "music" ? item.relevance || item.title : item.region || item.relevance || item.provider;
+  return String(raw || streamTitle(type))
+    .replace(/[^\p{L}\p{N}\s/+.-]/gu, "")
+    .trim()
+    .slice(0, 30);
+}
+
+function buildFeedCoverMarkup(type, item, index) {
+  const recommendation = buildRecommendationReason(type, item);
+  const coverToken = buildCoverToken(type, item);
+  const coverCaption = buildCoverCaption(type, item);
+  return `
+    <div class="feed-cover feed-cover-${type}${index === 0 ? " is-featured" : ""}">
+      <div class="feed-cover-top">
+        <span class="feed-cover-label">${escapeHtml(buildCoverLabel(type))}</span>
+        <span class="feed-cover-provider">${escapeHtml(item.provider || streamTitle(type))}</span>
+      </div>
+      <strong>${escapeHtml(coverToken || streamTitle(type))}</strong>
+      <div class="feed-cover-caption">${escapeHtml(coverCaption || recommendation)}</div>
+    </div>
+  `;
 }
 
 function parseItemTimestamp(timestamp) {
@@ -865,8 +1131,10 @@ function renderFeed(type) {
           const heat = buildHeatState(type, index, meta);
           const savedActive = Boolean(state.desk.saved[buildDeskKey(type, itemId)]);
           const laterActive = Boolean(state.desk.later[buildDeskKey(type, itemId)]);
+          const recommendation = buildRecommendationReason(type, item);
           return `
           <article class="${itemClass}${index === 0 ? " featured" : ""}">
+            ${buildFeedCoverMarkup(type, item, index)}
             <div class="feed-item-header">
               <div class="feed-item-headline">
                 <span class="feed-priority">${index === 0 ? "TOP PICK" : "LIVE"}</span>
@@ -881,9 +1149,13 @@ function renderFeed(type) {
               <span class="tag ${signalClass}">${escapeHtml(signal)}</span>
               <span>${regionLabel}: ${escapeHtml(relevance || provider)}</span>
             </div>
+            <div class="feed-reason">
+              <span class="feed-reason-label">推荐理由</span>
+              <span class="feed-reason-text">${escapeHtml(recommendation)}</span>
+            </div>
             <div class="feed-footer">
               <span class="muted">${escapeHtml(provider)}</span>
-              <a class="${linkClass}" href="${escapeAttribute(url)}" target="_blank" rel="noreferrer">${escapeHtml(linkLabel)}</a>
+              <a class="${linkClass}" href="${escapeAttribute(url)}" target="_blank" rel="noreferrer" data-track-link="1" data-type="${type}" data-item-id="${escapeAttribute(itemId)}">${escapeHtml(linkLabel)}</a>
             </div>
             <div class="feed-actions">
               <button class="item-action ${savedActive ? "is-active" : ""}" type="button" data-action="save" data-type="${type}" data-item-id="${escapeAttribute(itemId)}">
@@ -1332,12 +1604,43 @@ function renderPulseRail() {
 }
 
 function buildDigestMarkup() {
+  const liveCount = STREAM_TYPES.filter((type) => state.sourceMeta[type].mode === "live").length;
+  const topInterestTerms = Object.entries(state.profile.termWeights)
+    .sort((first, second) => second[1] - first[1])
+    .slice(0, 3)
+    .map(([key]) => state.profile.termLabels[key] || key);
+  const spotlight = buildSpotlightItems()[0];
+
   return `
     <div class="digest-shell">
       <div class="digest-summary-head">
         <span class="digest-mark">Briefing</span>
         <strong>今日情报简报</strong>
         <span class="muted">关键词: ${escapeHtml(state.settings.keywords || "未设置")}</span>
+      </div>
+      <div class="digest-hero">
+        <div class="digest-hero-copy">
+          <span class="digest-hero-kicker">Morning Lens</span>
+          <h3>${escapeHtml(spotlight?.title || "正在整理今日最值得先看的内容")}</h3>
+          <p>${escapeHtml(
+            spotlight?.summary ||
+              "四条内容流正在把热点、研究、音乐和娱乐压缩成一版更适合快速浏览的情报日报。",
+          )}</p>
+        </div>
+        <div class="digest-stat-grid">
+          <div class="digest-statline">
+            <span>在线内容流</span>
+            <strong>${liveCount} / ${STREAM_TYPES.length}</strong>
+          </div>
+          <div class="digest-statline">
+            <span>你的兴趣偏向</span>
+            <strong>${escapeHtml(topInterestTerms.join(" / ") || "正在学习中")}</strong>
+          </div>
+          <div class="digest-statline">
+            <span>当前排序方式</span>
+            <strong>${escapeHtml(state.view.sortMode === "recent" ? "最新优先" : "智能推荐")}</strong>
+          </div>
+        </div>
       </div>
       <div class="digest-grid">
         ${buildDigestCard("world", state.worldItems, "影响面")}
@@ -1393,6 +1696,8 @@ function buildDigestCard(type, items, insightLabel) {
   const lead = visibleItems[0];
   const follow = visibleItems[1];
   const meta = state.sourceMeta[type];
+  const leadReason = lead ? buildRecommendationReason(type, lead) : "等待下一次轮换";
+  const followReason = follow ? buildRecommendationReason(type, follow) : "暂无补充内容";
 
   return `
     <article class="digest-card stream-${type}">
@@ -1402,9 +1707,21 @@ function buildDigestCard(type, items, insightLabel) {
       </div>
       <h3>${escapeHtml(lead?.title || "暂无重点内容")}</h3>
       <p>${escapeHtml(lead?.summary || "等待下一次内容轮换。")}</p>
+      <div class="digest-story-list">
+        <div class="digest-story-item">
+          <span class="digest-story-label">主线</span>
+          <strong>${escapeHtml(lead?.relevance || lead?.provider || "待补充")}</strong>
+          <span>${escapeHtml(leadReason)}</span>
+        </div>
+        <div class="digest-story-item">
+          <span class="digest-story-label">次线</span>
+          <strong>${escapeHtml(follow?.title || "暂无补充线索")}</strong>
+          <span>${escapeHtml(followReason)}</span>
+        </div>
+      </div>
       <div class="digest-card-meta">
         <span>${escapeHtml(insightLabel)}: ${escapeHtml(lead?.relevance || lead?.provider || "待补充")}</span>
-        <span>${escapeHtml(follow?.title || "暂无补充线索")}</span>
+        <a class="mini-link" href="#section-${type}" data-section="section-${type}">进入板块</a>
       </div>
     </article>
   `;
