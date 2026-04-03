@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="一个暗色科技风的个人情报网页应用，持续追踪全球热点与 AI/NLP 前沿。"
+      content="一个暗色科技风的个人情报网页应用，持续追踪全球热点、AI/NLP 前沿与近期热门歌曲。"
     />
     <meta name="theme-color" content="#060816" />
-    <link rel="manifest" href="./manifest.webmanifest?v=4" />
-    <link rel="stylesheet" href="./styles.css?v=4" />
+    <link rel="manifest" href="./manifest.webmanifest?v=5" />
+    <link rel="stylesheet" href="./styles.css?v=5" />
     <title>XscNews</title>
   </head>
   <body>
@@ -22,7 +22,7 @@
           <p class="eyebrow">PERSONAL INTEL STREAM</p>
           <h1>XscNews</h1>
           <p class="hero-text">
-            每天追踪全球热点与 AI / NLP 前沿进展，把重要信息压缩成持续推送的个人情报流。
+            每天追踪全球热点、AI / NLP 前沿和近期热门歌曲，把重要信息压缩成持续推送的个人情报流。
           </p>
 
           <div class="hero-actions">
@@ -46,6 +46,11 @@
               <span class="metric-label">AI / NLP 流</span>
               <strong id="researchCount">0</strong>
               <span id="researchNextRun" class="metric-subtle">等待启动</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">热歌流</span>
+              <strong id="musicCount">0</strong>
+              <span id="musicNextRun" class="metric-subtle">等待启动</span>
             </div>
             <div class="metric-card">
               <span class="metric-label">推送状态</span>
@@ -112,6 +117,23 @@
               </label>
             </div>
 
+            <div class="setting-card">
+              <div class="setting-head">
+                <div>
+                  <h3>热门歌曲推送</h3>
+                  <p>聚合近期热歌榜、跨地区热门单曲和可直接打开的听歌线索。</p>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="musicToggle" checked />
+                  <span class="switch-track"></span>
+                </label>
+              </div>
+              <label class="field">
+                <span>更新间隔（分钟）</span>
+                <input id="musicInterval" type="number" min="1" max="1440" value="300" />
+              </label>
+            </div>
+
             <div class="setting-card full-span">
               <div class="setting-head">
                 <div>
@@ -167,6 +189,20 @@
             </div>
             <div id="researchFeed" class="feed-list"></div>
           </article>
+
+          <article class="panel feed-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="panel-kicker">MUSIC</p>
+                <h2>近期热门歌曲</h2>
+              </div>
+              <div class="panel-heading-actions">
+                <button id="nextMusicBtn" class="icon-button">换一批</button>
+                <button id="refreshMusicBtn" class="icon-button">刷新源</button>
+              </div>
+            </div>
+            <div id="musicFeed" class="feed-list"></div>
+          </article>
         </section>
 
         <section class="panel digest-panel">
@@ -183,6 +219,6 @@
       </main>
     </div>
 
-    <script type="module" src="./app.js?v=4"></script>
+    <script type="module" src="./app.js?v=5"></script>
   </body>
 </html>

@@ -1,4 +1,4 @@
-import { buildDigest, researchHotTopics, worldHotTopics } from "./data.js";
+import { buildDigest, musicHotTracks, researchHotTopics, worldHotTopics } from "./data.js";
 
 const STORAGE_KEY = "pulse-deck-settings";
 const DEFAULT_SETTINGS = {
@@ -6,45 +6,57 @@ const DEFAULT_SETTINGS = {
   worldInterval: 180,
   researchEnabled: true,
   researchInterval: 240,
+  musicEnabled: true,
+  musicInterval: 300,
   keywords: "OpenAI, agent, LLM, NLP, geopolitics, startup",
 };
 const DEFAULT_BATCH_SIZE = 6;
+const STREAM_TYPES = ["world", "research", "music"];
 
 const state = {
   settings: loadSettings(),
   worldItems: [],
   researchItems: [],
+  musicItems: [],
   pools: {
     world: [],
     research: [],
+    music: [],
   },
   seenIds: {
     world: new Set(),
     research: new Set(),
+    music: new Set(),
   },
   timers: {
     world: null,
     research: null,
+    music: null,
   },
   nextRuns: {
     world: null,
     research: null,
+    music: null,
   },
   loading: {
     world: false,
     research: false,
+    music: false,
   },
   batchSize: {
     world: DEFAULT_BATCH_SIZE,
     research: DEFAULT_BATCH_SIZE,
+    music: DEFAULT_BATCH_SIZE,
   },
   sourceMeta: {
     world: fallbackMeta("本地后备"),
     research: fallbackMeta("本地后备"),
+    music: fallbackMeta("本地后备"),
   },
   latestNotifiedId: {
     world: null,
     research: null,
+    music: null,
   },
 };
 
@@ -55,20 +67,27 @@ const elements = {
   pauseAllBtn: document.querySelector("#pauseAllBtn"),
   refreshWorldBtn: document.querySelector("#refreshWorldBtn"),
   refreshResearchBtn: document.querySelector("#refreshResearchBtn"),
+  refreshMusicBtn: document.querySelector("#refreshMusicBtn"),
   nextWorldBtn: document.querySelector("#nextWorldBtn"),
   nextResearchBtn: document.querySelector("#nextResearchBtn"),
+  nextMusicBtn: document.querySelector("#nextMusicBtn"),
   worldToggle: document.querySelector("#worldToggle"),
   researchToggle: document.querySelector("#researchToggle"),
+  musicToggle: document.querySelector("#musicToggle"),
   worldInterval: document.querySelector("#worldInterval"),
   researchInterval: document.querySelector("#researchInterval"),
+  musicInterval: document.querySelector("#musicInterval"),
   keywordInput: document.querySelector("#keywordInput"),
   worldFeed: document.querySelector("#worldFeed"),
   researchFeed: document.querySelector("#researchFeed"),
+  musicFeed: document.querySelector("#musicFeed"),
   digestOutput: document.querySelector("#digestOutput"),
   worldCount: document.querySelector("#worldCount"),
   researchCount: document.querySelector("#researchCount"),
+  musicCount: document.querySelector("#musicCount"),
   worldNextRun: document.querySelector("#worldNextRun"),
   researchNextRun: document.querySelector("#researchNextRun"),
+  musicNextRun: document.querySelector("#musicNextRun"),
   notificationState: document.querySelector("#notificationState"),
   systemMode: document.querySelector("#systemMode"),
   lastDigestTime: document.querySelector("#lastDigestTime"),
@@ -85,7 +104,7 @@ async function initialize() {
   bindEvents();
   updateNotificationState();
   registerServiceWorker();
-  await Promise.all([refreshStream("world"), refreshStream("research")]);
+  await Promise.all(STREAM_TYPES.map((type) => refreshStream(type)));
   startSchedulers();
 }
 
@@ -117,8 +136,10 @@ function saveSettings() {
 function syncControlsFromSettings() {
   elements.worldToggle.checked = state.settings.worldEnabled;
   elements.researchToggle.checked = state.settings.researchEnabled;
+  elements.musicToggle.checked = state.settings.musicEnabled;
   elements.worldInterval.value = state.settings.worldInterval;
   elements.researchInterval.value = state.settings.researchInterval;
+  elements.musicInterval.value = state.settings.musicInterval;
   elements.keywordInput.value = state.settings.keywords;
 }
 
@@ -131,42 +152,40 @@ function bindEvents() {
   elements.refreshResearchBtn.addEventListener("click", () =>
     refreshStream("research", { manual: true }),
   );
+  elements.refreshMusicBtn.addEventListener("click", () => refreshStream("music", { manual: true }));
   elements.nextWorldBtn.addEventListener("click", () => nextBatch("world", { manual: true }));
   elements.nextResearchBtn.addEventListener("click", () => nextBatch("research", { manual: true }));
+  elements.nextMusicBtn.addEventListener("click", () => nextBatch("music", { manual: true }));
 }
 
 function seedFallbackFeeds() {
-  const worldPool = buildFallbackItems("world");
-  const researchPool = buildFallbackItems("research");
-  state.pools.world = worldPool;
-  state.pools.research = researchPool;
-  state.sourceMeta.world = {
-    ...fallbackMeta("本地后备"),
-    poolSize: worldPool.length,
-    providers: ["本地后备"],
-  };
-  state.sourceMeta.research = {
-    ...fallbackMeta("本地后备"),
-    poolSize: researchPool.length,
-    providers: ["本地后备"],
-  };
-  nextBatch("world", { resetSeen: true });
-  nextBatch("research", { resetSeen: true });
+  STREAM_TYPES.forEach((type) => {
+    const pool = buildFallbackItems(type);
+    state.pools[type] = pool;
+    state.sourceMeta[type] = {
+      ...fallbackMeta("本地后备"),
+      poolSize: pool.length,
+      providers: ["本地后备"],
+    };
+    nextBatch(type, { resetSeen: true });
+  });
 }
 
 function buildFallbackItems(type) {
-  const source = type === "world" ? worldHotTopics : researchHotTopics;
+  const source =
+    type === "world" ? worldHotTopics : type === "research" ? researchHotTopics : musicHotTracks;
+
   return source.map((item, index) => ({
     id: `fallback-${type}-${index}`,
     title: item.title,
     summary: item.summary,
     timestamp: formatTime(new Date()),
-    url: buildItemLink(type, item.title, ""),
+    url: buildItemLink(type, item.title, "", item.artist || ""),
     provider: "本地后备",
     linkLabel: buildLinkLabel(type, ""),
-    region: type === "world" ? item.region : item.domain,
+    region: type === "world" ? item.region : type === "research" ? item.domain : item.genre,
     signal: item.signal,
-    relevance: item.relevance,
+    relevance: item.relevance || item.artist || "",
   }));
 }
 
@@ -223,7 +242,7 @@ async function refreshStream(type, { manual = false } = {}) {
 
     if (manual) {
       showToastCard(
-        type === "world" ? "世界热点资源池已刷新" : "AI / NLP 资源池已刷新",
+        streamTitle(type) + "资源池已刷新",
         `${state.sourceMeta[type].provider} · ${state.sourceMeta[type].poolSize} 条内容`,
       );
     }
@@ -235,7 +254,7 @@ async function refreshStream(type, { manual = false } = {}) {
     }
 
     state.sourceMeta[type] = {
-      mode: state.pools[type].length ? "fallback" : "fallback",
+      mode: "fallback",
       provider: state.pools[type].length ? "沿用当前内容池" : "本地后备",
       fetchedAt: new Date().toISOString(),
       error: error.message,
@@ -247,7 +266,7 @@ async function refreshStream(type, { manual = false } = {}) {
     if (manual) {
       showToastCard(
         "实时源暂不可用",
-        `${type === "world" ? "新闻池" : "研究池"} 保留当前内容，你仍然可以点“换一批”。`,
+        `${streamShortName(type)}保留当前内容，你仍然可以点“换一批”。`,
       );
     }
   } finally {
@@ -280,7 +299,7 @@ function nextBatch(type, { resetSeen = false, manual = false } = {}) {
 
   if (manual) {
     showToastCard(
-      type === "world" ? "世界热点已换一批" : "研究内容已换一批",
+      streamTitle(type) + "已换一批",
       `当前内容池还有 ${Math.max(pool.length - state.seenIds[type].size, 0)} 条未看过的内容。`,
     );
   }
@@ -292,45 +311,60 @@ function normalizeItems(type, items = []) {
     title: item.title || "未命名条目",
     summary: item.summary || "暂无摘要。",
     timestamp: item.timestamp || formatTime(new Date()),
-    url: buildItemLink(type, item.title || "", item.url || ""),
-    provider: item.provider || (type === "world" ? "新闻源" : "论文源"),
+    url: buildItemLink(type, item.title || "", item.url || "", item.artist || item.relevance || ""),
+    provider: item.provider || defaultProvider(type),
     linkLabel: item.linkLabel || buildLinkLabel(type, item.url || ""),
-    region: type === "world" ? item.region || "Global" : item.domain || "Research",
-    signal: item.signal || "实时更新",
-    relevance: item.relevance || "",
+    region:
+      type === "world"
+        ? item.region || "Global"
+        : type === "research"
+          ? item.domain || "Research"
+          : item.genre || item.region || "Trending",
+    signal: item.signal || defaultSignal(type),
+    relevance: item.relevance || item.artist || "",
   }));
 }
 
-function buildItemLink(type, title, existingUrl) {
+function buildItemLink(type, title, existingUrl, extra = "") {
   if (existingUrl) return existingUrl;
 
-  const encodedTitle = encodeURIComponent(title);
+  const query = encodeURIComponent(`${title} ${extra}`.trim());
   if (type === "world") {
-    return `https://www.bing.com/news/search?q=${encodedTitle}`;
+    return `https://www.bing.com/news/search?q=${query}`;
   }
 
-  return `https://www.semanticscholar.org/search?q=${encodedTitle}&sort=relevance`;
+  if (type === "research") {
+    return `https://www.semanticscholar.org/search?q=${query}&sort=relevance`;
+  }
+
+  return `https://www.youtube.com/results?search_query=${query}%20official%20audio`;
 }
 
 function buildLinkLabel(type, existingUrl) {
   if (existingUrl) {
-    return type === "world" ? "查看原文" : "查看论文";
+    if (type === "world") return "查看原文";
+    if (type === "research") return "查看论文";
+    return "听歌 / 视频";
   }
 
-  return type === "world" ? "查看线索" : "搜索论文";
+  if (type === "world") return "查看线索";
+  if (type === "research") return "搜索论文";
+  return "搜索歌曲";
 }
 
 function renderAll() {
-  renderFeed("world");
-  renderFeed("research");
+  STREAM_TYPES.forEach((type) => renderFeed(type));
   renderMetrics();
 }
 
 function renderFeed(type) {
-  const container = type === "world" ? elements.worldFeed : elements.researchFeed;
+  const container = elements[`${type}Feed`];
   const items = state[`${type}Items`];
   const meta = state.sourceMeta[type];
-  const regionLabel = type === "world" ? "影响面" : "落地方向";
+  const regionLabel =
+    type === "world" ? "影响面" : type === "research" ? "落地方向" : "热度线索";
+  const signalClass =
+    type === "world" ? "warning" : type === "research" ? "success" : "music";
 
   if (state.loading[type] && !items.length) {
     container.innerHTML = '<div class="empty-state">正在构建多源内容池...</div>';
@@ -358,7 +392,7 @@ function renderFeed(type) {
             <h3>${escapeHtml(title)}</h3>
             <p>${escapeHtml(summary)}</p>
             <div class="feed-meta">
-              <span class="tag ${type === "world" ? "warning" : "success"}">${escapeHtml(signal)}</span>
+              <span class="tag ${signalClass}">${escapeHtml(signal)}</span>
               <span>${regionLabel}: ${escapeHtml(relevance || provider)}</span>
             </div>
             <div class="feed-footer">
@@ -377,20 +411,24 @@ function renderMetrics() {
   elements.researchCount.textContent = String(
     state.sourceMeta.research.poolSize || state.pools.research.length,
   );
+  elements.musicCount.textContent = String(state.sourceMeta.music.poolSize || state.pools.music.length);
   elements.worldNextRun.textContent = formatNextRunText(state.nextRuns.world, state.settings.worldEnabled);
   elements.researchNextRun.textContent = formatNextRunText(
     state.nextRuns.research,
     state.settings.researchEnabled,
   );
+  elements.musicNextRun.textContent = formatNextRunText(state.nextRuns.music, state.settings.musicEnabled);
 
-  const liveCount = [state.sourceMeta.world, state.sourceMeta.research].filter(
+  const liveCount = STREAM_TYPES.map((type) => state.sourceMeta[type]).filter(
     (entry) => entry.mode === "live",
   ).length;
-  elements.systemMode.textContent = liveCount === 2 ? "内容池轮换" : "混合模式";
-  elements.dataModeBadge.textContent = liveCount === 2 ? "MULTI-SOURCE LIVE" : "LIVE + FALLBACK";
+  elements.systemMode.textContent = liveCount === STREAM_TYPES.length ? "三流轮换" : "混合模式";
+  elements.dataModeBadge.textContent =
+    liveCount === STREAM_TYPES.length ? "3 STREAMS LIVE" : "MIXED SOURCES";
   elements.sourceSummary.textContent = [
     `热点: ${buildSourceLine(state.sourceMeta.world)}`,
     `研究: ${buildSourceLine(state.sourceMeta.research)}`,
+    `音乐: ${buildSourceLine(state.sourceMeta.music)}`,
   ].join(" | ");
 }
 
@@ -407,53 +445,44 @@ function handleSaveSettings() {
   state.settings = {
     worldEnabled: elements.worldToggle.checked,
     researchEnabled: elements.researchToggle.checked,
+    musicEnabled: elements.musicToggle.checked,
     worldInterval: clampMinutes(elements.worldInterval.value),
     researchInterval: clampMinutes(elements.researchInterval.value),
+    musicInterval: clampMinutes(elements.musicInterval.value),
     keywords: elements.keywordInput.value.trim(),
   };
   syncControlsFromSettings();
   saveSettings();
   startSchedulers();
-  void Promise.all([refreshStream("world"), refreshStream("research")]);
+  void Promise.all(STREAM_TYPES.map((type) => refreshStream(type)));
   showToastCard("设置已保存", "新的关键词和轮询节奏已经开始生效。");
 }
 
 function pauseAllSchedules() {
-  state.settings.worldEnabled = false;
-  state.settings.researchEnabled = false;
-  clearTimer("world");
-  clearTimer("research");
-  state.nextRuns.world = null;
-  state.nextRuns.research = null;
+  STREAM_TYPES.forEach((type) => {
+    state.settings[`${type}Enabled`] = false;
+    clearTimer(type);
+    state.nextRuns[type] = null;
+  });
   syncControlsFromSettings();
   saveSettings();
   renderMetrics();
-  showToastCard("推送已暂停", "两个信息流都已停止自动更新。");
+  showToastCard("推送已暂停", "三个信息流都已停止自动更新。");
 }
 
 function startSchedulers() {
-  clearTimer("world");
-  clearTimer("research");
-
-  if (state.settings.worldEnabled) {
-    scheduleNextRun("world");
-    state.timers.world = window.setInterval(
-      () => void refreshStream("world"),
-      minutesToMs(state.settings.worldInterval),
-    );
-  } else {
-    state.nextRuns.world = null;
-  }
-
-  if (state.settings.researchEnabled) {
-    scheduleNextRun("research");
-    state.timers.research = window.setInterval(
-      () => void refreshStream("research"),
-      minutesToMs(state.settings.researchInterval),
-    );
-  } else {
-    state.nextRuns.research = null;
-  }
+  STREAM_TYPES.forEach((type) => {
+    clearTimer(type);
+    if (state.settings[`${type}Enabled`]) {
+      scheduleNextRun(type);
+      state.timers[type] = window.setInterval(
+        () => void refreshStream(type),
+        minutesToMs(state.settings[`${type}Interval`]),
+      );
+    } else {
+      state.nextRuns[type] = null;
+    }
+  });
 
   renderMetrics();
 }
@@ -466,13 +495,12 @@ function clearTimer(type) {
 }
 
 function scheduleNextRun(type) {
-  const minutes = type === "world" ? state.settings.worldInterval : state.settings.researchInterval;
-  state.nextRuns[type] = new Date(Date.now() + minutesToMs(minutes));
+  state.nextRuns[type] = new Date(Date.now() + minutesToMs(state.settings[`${type}Interval`]));
 }
 
 function updateButtonState(type) {
-  const refreshButton = type === "world" ? elements.refreshWorldBtn : elements.refreshResearchBtn;
-  const nextButton = type === "world" ? elements.nextWorldBtn : elements.nextResearchBtn;
+  const refreshButton = elements[`refresh${capitalize(type)}Btn`];
+  const nextButton = elements[`next${capitalize(type)}Btn`];
 
   if (refreshButton) {
     refreshButton.disabled = state.loading[type];
@@ -490,7 +518,7 @@ function maybeNotify(type, item) {
     return;
   }
 
-  new Notification(type === "world" ? "全球热点更新" : "AI / NLP 前沿更新", {
+  new Notification(streamNotificationTitle(type), {
     body: `${item.title} | ${item.summary}`,
     tag: `xscnews-${type}`,
     silent: false,
@@ -523,7 +551,12 @@ function updateNotificationState(permission = "Notification" in window ? Notific
 }
 
 function generateDigest() {
-  const digest = buildDigest(state.worldItems, state.researchItems, state.settings.keywords);
+  const digest = buildDigest(
+    state.worldItems,
+    state.researchItems,
+    state.musicItems,
+    state.settings.keywords,
+  );
   elements.digestOutput.textContent = digest;
   elements.lastDigestTime.textContent = `最近摘要: ${formatTime(new Date())}`;
   showToastCard("今日摘要已生成", "当前简报已经根据最新信息流重组。");
@@ -556,6 +589,40 @@ function registerServiceWorker() {
       // Service worker failure should not block the main app.
     });
   }
+}
+
+function streamTitle(type) {
+  if (type === "world") return "世界热点";
+  if (type === "research") return "AI / NLP 前沿";
+  return "近期热门歌曲";
+}
+
+function streamShortName(type) {
+  if (type === "world") return "新闻池";
+  if (type === "research") return "研究池";
+  return "音乐池";
+}
+
+function streamNotificationTitle(type) {
+  if (type === "world") return "全球热点更新";
+  if (type === "research") return "AI / NLP 前沿更新";
+  return "热门歌曲更新";
+}
+
+function defaultProvider(type) {
+  if (type === "world") return "新闻源";
+  if (type === "research") return "论文源";
+  return "音乐榜单";
+}
+
+function defaultSignal(type) {
+  if (type === "world") return "多源资讯";
+  if (type === "research") return "实时更新";
+  return "热歌榜单";
+}
+
+function capitalize(value) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 function minutesToMs(minutes) {

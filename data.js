@@ -84,11 +84,64 @@ export const researchHotTopics = [
   },
 ];
 
-export function buildDigest(worldItems, researchItems, keywords) {
+export const musicHotTracks = [
+  {
+    title: "Ordinary",
+    artist: "Alex Warren",
+    summary: "流媒体与短视频平台热度持续走高，适合作为近期开屏热歌观察样本。",
+    genre: "Pop",
+    signal: "后备数据",
+    relevance: "高频播放、短视频扩散、榜单稳定上行",
+  },
+  {
+    title: "Die With A Smile",
+    artist: "Lady Gaga & Bruno Mars",
+    summary: "跨圈层传播力很强，兼具主流榜单表现与视频平台二次创作热度。",
+    genre: "Pop",
+    signal: "后备数据",
+    relevance: "主流热单、合唱话题、全球流量",
+  },
+  {
+    title: "APT.",
+    artist: "ROSÉ & Bruno Mars",
+    summary: "兼具国际流量与亚洲讨论度，适合放在热歌流里做高活跃条目。",
+    genre: "Global Pop",
+    signal: "后备数据",
+    relevance: "全球传播、短视频扩散、跨区热度",
+  },
+  {
+    title: "Beautiful Things",
+    artist: "Benson Boone",
+    summary: "情绪表达强，常见于热门歌单和翻唱二创，长尾热度表现稳。",
+    genre: "Pop Rock",
+    signal: "后备数据",
+    relevance: "翻唱扩散、歌单常驻、长尾播放",
+  },
+  {
+    title: "Lose Control",
+    artist: "Teddy Swims",
+    summary: "在电台、流媒体和现场表演内容里都保持很高存在感。",
+    genre: "Soul Pop",
+    signal: "后备数据",
+    relevance: "电台扩散、流媒体稳定、现场传播",
+  },
+  {
+    title: "Birds of a Feather",
+    artist: "Billie Eilish",
+    summary: "兼具主流听众和审美型受众关注度，适合作为近期热歌池的重要补位。",
+    genre: "Alt Pop",
+    signal: "后备数据",
+    relevance: "审美传播、歌单渗透、全球听众",
+  },
+];
+
+export function buildDigest(worldItems, researchItems, musicItems, keywords) {
   const world = worldItems[0];
   const research = researchItems[0];
+  const music = musicItems[0];
   const secondWorld = worldItems[1];
   const secondResearch = researchItems[1];
+  const secondMusic = musicItems[1];
 
   return [
     "今日情报简报",
@@ -103,8 +156,13 @@ export function buildDigest(worldItems, researchItems, keywords) {
     `补充线索: ${secondResearch?.title || "暂无补充线索"}`,
     `落地方向: ${research?.relevance || "待补充"}`,
     "",
-    `3. 当前追踪关键词: ${keywords || "未设置"}`,
+    `3. 热门歌曲重点: ${music?.title || "暂无"}${music?.relevance ? ` · ${music.relevance}` : ""}`,
+    `摘要: ${music?.summary || "暂无摘要"}`,
+    `补充线索: ${secondMusic?.title || "暂无补充线索"}`,
+    `热度线索: ${music?.signal || "待补充"}`,
     "",
-    "注: 当前版本已经优先连接真实新闻源和真实论文源；如果网络或源站异常，会自动回退到本地后备数据，确保页面始终可用。",
+    `4. 当前追踪关键词: ${keywords || "未设置"}`,
+    "",
+    "注: 当前版本已经优先连接真实新闻源、真实论文源和音乐榜单源；如果网络或源站异常，会自动回退到本地后备数据，确保页面始终可用。",
   ].join("\n");
 }

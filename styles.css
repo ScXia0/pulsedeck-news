@@ -10,6 +10,8 @@
   --accent: #6fe7ff;
   --accent-strong: #4bb8ff;
   --accent-secondary: #7c89ff;
+  --music-accent: #ff9d67;
+  --music-accent-strong: #ffbe78;
   --success: #6dffb2;
   --warning: #ffce6d;
   --shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
@@ -248,7 +250,7 @@ button:disabled {
 .hero-grid {
   display: grid;
   width: 100%;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 16px;
 }
 
@@ -311,7 +313,7 @@ button:disabled {
 
 .control-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 18px;
 }
 
@@ -396,7 +398,7 @@ button:disabled {
 
 .feeds-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 22px;
 }
 
@@ -500,6 +502,11 @@ button:disabled {
   color: var(--success);
 }
 
+.tag.music {
+  background: rgba(255, 157, 103, 0.12);
+  color: var(--music-accent-strong);
+}
+
 .digest-output {
   min-height: 152px;
   border-radius: var(--radius-lg);
@@ -539,9 +546,12 @@ button:disabled {
 
 @media (max-width: 980px) {
   .hero,
-  .feeds-grid,
   .control-grid {
     grid-template-columns: 1fr;
+  }
+
+  .feeds-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .hero-grid {
@@ -560,7 +570,8 @@ button:disabled {
     padding: 20px;
   }
 
-  .hero-grid {
+  .hero-grid,
+  .feeds-grid {
     grid-template-columns: 1fr;
   }
 

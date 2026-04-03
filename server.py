@@ -27,6 +27,7 @@ PORT = int(os.environ.get("PORT", "8000"))
 CACHE_TTL_SECONDS = 20 * 60
 WORLD_POOL_LIMIT = 48
 RESEARCH_POOL_LIMIT = 42
+MUSIC_POOL_LIMIT = 54
 BATCH_SIZE = 6
 ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
 REQUEST_HEADERS = {
@@ -160,6 +161,81 @@ RESEARCH_FALLBACK = [
     },
 ]
 
+MUSIC_FALLBACK = [
+    {
+        "id": "music-fallback-1",
+        "title": "Ordinary",
+        "summary": "近期在主流播放平台和短视频里都很活跃，适合用来代表当下的高热单曲。",
+        "genre": "Pop",
+        "signal": "后备数据",
+        "relevance": "Alex Warren",
+        "timestamp": "本地后备",
+        "url": "https://www.youtube.com/results?search_query=Ordinary+Alex+Warren+official+audio",
+        "provider": "本地后备",
+        "linkLabel": "听歌 / 视频",
+    },
+    {
+        "id": "music-fallback-2",
+        "title": "Die With A Smile",
+        "summary": "跨平台传播力强，常见于热门歌单、翻唱和视频剪辑内容里。",
+        "genre": "Pop",
+        "signal": "后备数据",
+        "relevance": "Lady Gaga & Bruno Mars",
+        "timestamp": "本地后备",
+        "url": "https://www.youtube.com/results?search_query=Die+With+A+Smile+Lady+Gaga+Bruno+Mars+official+audio",
+        "provider": "本地后备",
+        "linkLabel": "听歌 / 视频",
+    },
+    {
+        "id": "music-fallback-3",
+        "title": "APT.",
+        "summary": "兼具全球热度和亚洲讨论度，是近期跨区传播非常强的代表性热歌。",
+        "genre": "Global Pop",
+        "signal": "后备数据",
+        "relevance": "ROSÉ & Bruno Mars",
+        "timestamp": "本地后备",
+        "url": "https://www.youtube.com/results?search_query=APT+ROSE+Bruno+Mars+official+audio",
+        "provider": "本地后备",
+        "linkLabel": "听歌 / 视频",
+    },
+    {
+        "id": "music-fallback-4",
+        "title": "Beautiful Things",
+        "summary": "在流媒体和翻唱生态里持续保持高曝光，属于很稳的热门单曲。",
+        "genre": "Pop Rock",
+        "signal": "后备数据",
+        "relevance": "Benson Boone",
+        "timestamp": "本地后备",
+        "url": "https://www.youtube.com/results?search_query=Beautiful+Things+Benson+Boone+official+audio",
+        "provider": "本地后备",
+        "linkLabel": "听歌 / 视频",
+    },
+    {
+        "id": "music-fallback-5",
+        "title": "Birds of a Feather",
+        "summary": "兼具审美型用户与主流用户关注度，常被各类精选歌单反复收录。",
+        "genre": "Alt Pop",
+        "signal": "后备数据",
+        "relevance": "Billie Eilish",
+        "timestamp": "本地后备",
+        "url": "https://www.youtube.com/results?search_query=Birds+of+a+Feather+Billie+Eilish+official+audio",
+        "provider": "本地后备",
+        "linkLabel": "听歌 / 视频",
+    },
+    {
+        "id": "music-fallback-6",
+        "title": "Lose Control",
+        "summary": "电台、流媒体和现场表演传播都比较稳，适合做热歌池的高频补位。",
+        "genre": "Soul Pop",
+        "signal": "后备数据",
+        "relevance": "Teddy Swims",
+        "timestamp": "本地后备",
+        "url": "https://www.youtube.com/results?search_query=Lose+Control+Teddy+Swims+official+audio",
+        "provider": "本地后备",
+        "linkLabel": "听歌 / 视频",
+    },
+]
+
 WORLD_RSS_SOURCES = [
     {"provider": "BBC World", "url": "https://feeds.bbci.co.uk/news/world/rss.xml", "region": "World"},
     {"provider": "BBC Business", "url": "https://feeds.bbci.co.uk/news/business/rss.xml", "region": "Business"},
@@ -214,6 +290,65 @@ RESEARCH_SEMANTIC_QUERIES = [
     ("Multimodal", '"multimodal reasoning"'),
 ]
 
+MUSIC_BILLBOARD_SOURCES = [
+    {
+        "kind": "billboard",
+        "provider": "Billboard Hot 100",
+        "url": "https://www.billboard.com/charts/hot-100/",
+        "genre": "US Top",
+        "chart": "Hot 100",
+    },
+    {
+        "kind": "billboard",
+        "provider": "Billboard Global 200",
+        "url": "https://www.billboard.com/charts/billboard-global-200/",
+        "genre": "Global",
+        "chart": "Global 200",
+    },
+    {
+        "kind": "billboard",
+        "provider": "Billboard Global Excl. US",
+        "url": "https://www.billboard.com/charts/billboard-global-excl-us/",
+        "genre": "Global",
+        "chart": "Global Excl. US",
+    },
+    {
+        "kind": "billboard",
+        "provider": "Billboard Japan Hot 100",
+        "url": "https://www.billboard.com/charts/japan-hot-100/",
+        "genre": "Japan",
+        "chart": "Japan Hot 100",
+    },
+    {
+        "kind": "billboard",
+        "provider": "Billboard Korea Hot 100",
+        "url": "https://www.billboard.com/charts/billboard-korea-hot-100/",
+        "genre": "K-Pop",
+        "chart": "Korea Hot 100",
+    },
+    {
+        "kind": "billboard",
+        "provider": "Billboard Hot Rock & Alternative",
+        "url": "https://www.billboard.com/charts/hot-rock-songs/",
+        "genre": "Rock / Alt",
+        "chart": "Hot Rock & Alternative Songs",
+    },
+    {
+        "kind": "billboard",
+        "provider": "Billboard Hot R&B / Hip-Hop",
+        "url": "https://www.billboard.com/charts/r-b-hip-hop-songs/",
+        "genre": "R&B / Hip-Hop",
+        "chart": "Hot R&B / Hip-Hop Songs",
+    },
+    {
+        "kind": "billboard",
+        "provider": "Billboard Hot Country",
+        "url": "https://www.billboard.com/charts/country-songs/",
+        "genre": "Country",
+        "chart": "Hot Country Songs",
+    },
+]
+
 feed_cache: dict[tuple[str, str], dict[str, Any]] = {}
 
 
@@ -233,11 +368,16 @@ class PulseDeckHandler(SimpleHTTPRequestHandler):
             self.respond_json({"status": "ok", "time": utc_now_iso()})
             return
 
-        if parsed.path in {"/api/world", "/api/research"}:
+        if parsed.path in {"/api/world", "/api/research", "/api/music"}:
             query = parse_qs(parsed.query)
             keywords = normalize_keywords(query.get("keywords", [""])[0])
             force_refresh = query.get("force", ["0"])[0] == "1"
-            feed_type = "world" if parsed.path.endswith("/world") else "research"
+            if parsed.path.endswith("/world"):
+                feed_type = "world"
+            elif parsed.path.endswith("/research"):
+                feed_type = "research"
+            else:
+                feed_type = "music"
             payload = get_cached_feed(feed_type, keywords, force_refresh=force_refresh)
             self.respond_json(payload)
             return
@@ -262,7 +402,12 @@ def get_cached_feed(feed_type: str, keywords: list[str], force_refresh: bool = F
     if not force_refresh and cached and now - cached["stored_at"] < CACHE_TTL_SECONDS:
         return cached["payload"]
 
-    payload = build_world_feed_payload(keywords) if feed_type == "world" else build_research_feed_payload(keywords)
+    if feed_type == "world":
+        payload = build_world_feed_payload(keywords)
+    elif feed_type == "research":
+        payload = build_research_feed_payload(keywords)
+    else:
+        payload = build_music_feed_payload()
     feed_cache[cache_key] = {"stored_at": now, "payload": payload}
     return payload
 
@@ -314,8 +459,34 @@ def build_research_feed_payload(keywords: list[str]) -> dict[str, Any]:
     }
 
 
+def build_music_feed_payload() -> dict[str, Any]:
+    items, errors = gather_source_items(MUSIC_BILLBOARD_SOURCES, fetch_music_source, max_workers=5)
+    pool = diversify_and_limit(dedupe_items(items), MUSIC_POOL_LIMIT)
+
+    if not pool:
+        return fallback_payload("music", errors)
+
+    providers = summarize_providers(pool)
+    return {
+        "mode": "live",
+        "provider": f"{len(providers)} 个音乐榜单源",
+        "providers": providers,
+        "fetchedAt": utc_now_iso(),
+        "error": summarize_errors(errors),
+        "poolSize": len(pool),
+        "batchSize": BATCH_SIZE,
+        "items": pool,
+    }
+
+
 def fallback_payload(feed_type: str, errors: list[str]) -> dict[str, Any]:
-    items = WORLD_FALLBACK if feed_type == "world" else RESEARCH_FALLBACK
+    items = (
+        WORLD_FALLBACK
+        if feed_type == "world"
+        else RESEARCH_FALLBACK
+        if feed_type == "research"
+        else MUSIC_FALLBACK
+    )
     providers = summarize_providers(items)
     label = "本地后备"
     return {
@@ -477,6 +648,19 @@ def fetch_research_source(source: dict[str, Any]) -> list[dict[str, Any]]:
     return []
 
 
+def fetch_music_source(source: dict[str, Any]) -> list[dict[str, Any]]:
+    if source["kind"] == "billboard":
+        html_text = fetch_text(source["url"], timeout=10)
+        return parse_billboard_chart(
+            html_text,
+            provider=source["provider"],
+            chart=source["chart"],
+            genre=source["genre"],
+        )
+
+    return []
+
+
 def parse_rss_feed(xml_text: str, provider: str, default_region: str) -> list[dict[str, Any]]:
     root = ET.fromstring(xml_text)
     items: list[dict[str, Any]] = []
@@ -556,6 +740,60 @@ def parse_arxiv_feed(xml_text: str, topic: str, provider: str) -> list[dict[str,
                 "provider": provider,
                 "linkLabel": "查看 PDF" if pdf_link else "查看论文",
                 "_sort_ts": parse_feed_timestamp(published_raw),
+            }
+        )
+
+    return items
+
+
+def parse_billboard_chart(html_text: str, provider: str, chart: str, genre: str) -> list[dict[str, Any]]:
+    rows = re.split(r'<div class="o-chart-results-list-row-container">', html_text)[1:]
+    items: list[dict[str, Any]] = []
+    fetched_at = utc_now_iso()
+
+    for fallback_rank, row in enumerate(rows[:18], start=1):
+        title = extract_match(
+            row,
+            [
+                r'<h3 id="title-of-a-story"[^>]*>\s*(?:<a[^>]*>)?\s*([^<]+?)\s*(?:</a>)?\s*</h3>',
+                r'<span class="c-title[^"]*"[^>]*>\s*(?:<a[^>]*>)?\s*([^<]+?)\s*(?:</a>)?\s*</span>',
+            ],
+        )
+        artist = extract_match(
+            row,
+            [
+                r'<span class="c-label\s+a-no-trucate[^"]*"[^>]*>\s*(?:<a[^>]*>)?\s*([^<]+?)\s*(?:</a>)?\s*</span>',
+                r'<h3 class="c-title[^"]*"[^>]*>\s*(?:<a[^>]*>)?\s*([^<]+?)\s*(?:</a>)?\s*</h3>',
+            ],
+        )
+        if not title:
+            continue
+
+        rank = extract_match(
+            row,
+            [
+                r'u-font-size-32px[^>]*>\s*([0-9]{1,3})\s*<',
+                r'u-font-size-28px[^>]*>\s*([0-9]{1,3})\s*<',
+                r'u-width-45px@mobile-max[^>]*>\s*<span[^>]*>\s*([0-9]{1,3})\s*</span>',
+            ],
+        ) or str(fallback_rank)
+
+        search_url = build_music_search_url(title, artist)
+        summary = f"来自 {chart} 的近期热门歌曲，当前排位 #{rank}，可直接打开听歌或视频搜索入口。"
+        items.append(
+            {
+                "id": hashed_id(provider, chart, title, artist, rank),
+                "title": title,
+                "summary": truncate(summary, 220),
+                "genre": genre,
+                "signal": f"#{rank} {chart}",
+                "relevance": artist or f"{chart} 热单",
+                "artist": artist,
+                "timestamp": format_feed_time(fetched_at),
+                "url": search_url,
+                "provider": provider,
+                "linkLabel": "听歌 / 视频",
+                "_sort_ts": parse_feed_timestamp(fetched_at) - fallback_rank,
             }
         )
 
@@ -665,6 +903,11 @@ def build_google_news_url(query: str) -> str:
     )
 
 
+def build_music_search_url(title: str, artist: str) -> str:
+    query = f"{title} {artist} official audio".strip()
+    return "https://www.youtube.com/results?" + urlencode({"search_query": query})
+
+
 def build_gdelt_query(base_query: str, keywords: list[str]) -> str:
     extras = " OR ".join(quote_phrase(keyword) for keyword in keywords[:2] if keyword)
     if extras:
@@ -770,6 +1013,15 @@ def infer_research_domain(title: str, abstract: str, fallback: str) -> str:
 
 def quote_phrase(value: str) -> str:
     return f'"{value.replace(chr(34), "").strip()}"'
+
+
+def extract_match(text: str, patterns: list[str]) -> str:
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+        if not match:
+            continue
+        return clean_html_text(match.group(1))
+    return ""
 
 
 def normalize_keywords(raw: str) -> list[str]:
