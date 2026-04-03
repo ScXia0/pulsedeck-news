@@ -8,8 +8,8 @@
       content="一个暗色科技风的个人情报网页应用，持续追踪全球热点、AI/NLP 前沿、近期热门歌曲与娱乐新闻。"
     />
     <meta name="theme-color" content="#060816" />
-    <link rel="manifest" href="./manifest.webmanifest?v=8" />
-    <link rel="stylesheet" href="./styles.css?v=8" />
+    <link rel="manifest" href="./manifest.webmanifest?v=9" />
+    <link rel="stylesheet" href="./styles.css?v=9" />
     <title>XscNews</title>
   </head>
   <body>
@@ -25,11 +25,12 @@
             每天追踪全球热点、AI / NLP 前沿、近期热门歌曲和娱乐新闻，把重要信息压缩成持续推送的个人情报流。
           </p>
           <div class="hero-streams">
-            <span class="hero-stream stream-world">Global Radar</span>
-            <span class="hero-stream stream-research">AI Research</span>
-            <span class="hero-stream stream-music">Music Heat</span>
-            <span class="hero-stream stream-entertainment">Entertainment Buzz</span>
+            <a class="hero-stream jump-link stream-world" href="#section-world">Global Radar</a>
+            <a class="hero-stream jump-link stream-research" href="#section-research">AI Research</a>
+            <a class="hero-stream jump-link stream-music" href="#section-music">Music Heat</a>
+            <a class="hero-stream jump-link stream-entertainment" href="#section-entertainment">Entertainment Buzz</a>
           </div>
+          <p class="hero-jump-hint">点上面的标签可以直接跳到对应板块。</p>
 
           <div class="hero-actions">
             <button id="notifyPermissionBtn" class="primary-button">
@@ -85,6 +86,14 @@
           </div>
         </div>
       </header>
+
+      <nav class="quick-jump" aria-label="快速跳转">
+        <a class="quick-jump-link stream-world" href="#section-world">热点</a>
+        <a class="quick-jump-link stream-research" href="#section-research">研究</a>
+        <a class="quick-jump-link stream-music" href="#section-music">音乐</a>
+        <a class="quick-jump-link stream-entertainment" href="#section-entertainment">娱乐</a>
+        <a class="quick-jump-link stream-neutral" href="#section-digest">摘要</a>
+      </nav>
 
       <main class="dashboard">
         <section class="panel signal-panel">
@@ -216,7 +225,7 @@
         </section>
 
         <section class="feeds-grid">
-          <article class="panel feed-panel stream-world">
+          <article id="section-world" class="panel feed-panel stream-world">
             <div class="panel-heading">
               <div>
                 <p class="panel-kicker">GLOBAL</p>
@@ -230,7 +239,7 @@
             <div id="worldFeed" class="feed-list"></div>
           </article>
 
-          <article class="panel feed-panel stream-research">
+          <article id="section-research" class="panel feed-panel stream-research">
             <div class="panel-heading">
               <div>
                 <p class="panel-kicker">RESEARCH</p>
@@ -244,7 +253,7 @@
             <div id="researchFeed" class="feed-list"></div>
           </article>
 
-          <article class="panel feed-panel stream-music">
+          <article id="section-music" class="panel feed-panel stream-music">
             <div class="panel-heading">
               <div>
                 <p class="panel-kicker">MUSIC</p>
@@ -258,7 +267,7 @@
             <div id="musicFeed" class="feed-list"></div>
           </article>
 
-          <article class="panel feed-panel stream-entertainment">
+          <article id="section-entertainment" class="panel feed-panel stream-entertainment">
             <div class="panel-heading">
               <div>
                 <p class="panel-kicker">ENTERTAINMENT</p>
@@ -273,7 +282,7 @@
           </article>
         </section>
 
-        <section class="panel digest-panel">
+        <section id="section-digest" class="panel digest-panel">
           <div class="panel-heading">
             <div>
               <p class="panel-kicker">DIGEST</p>
@@ -290,6 +299,6 @@
       </main>
     </div>
 
-    <script type="module" src="./app.js?v=8"></script>
+    <script type="module" src="./app.js?v=9"></script>
   </body>
 </html>
