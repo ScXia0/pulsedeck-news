@@ -141,11 +141,12 @@ async function refreshStream(type, { manual = false } = {}) {
   if (state.loading[type]) return;
 
   state.loading[type] = true;
+  updateRefreshButtonState(type);
   renderFeed(type);
 
   const previousTopId = state[`${type}Items`][0]?.id;
   const endpoint = `/api/${type}?keywords=${encodeURIComponent(state.settings.keywords)}${
-    manual ? "&force=1" : ""
+    manual ? `&force=1&_ts=${Date.now()}` : ""
   }`;
 
   try {
@@ -203,9 +204,17 @@ async function refreshStream(type, { manual = false } = {}) {
     }
   } finally {
     state.loading[type] = false;
+    updateRefreshButtonState(type);
     renderFeed(type);
     renderMetrics();
   }
+}
+
+function updateRefreshButtonState(type) {
+  const button = type === "world" ? elements.refreshWorldBtn : elements.refreshResearchBtn;
+  if (!button) return;
+  button.disabled = state.loading[type];
+  button.textContent = state.loading[type] ? "刷新中..." : "刷新";
 }
 
 function normalizeItems(type, items = []) {

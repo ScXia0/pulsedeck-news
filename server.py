@@ -138,7 +138,7 @@ def build_world_feed_payload(keywords: list[str]) -> dict[str, Any]:
     }
 
     try:
-        payload = fetch_json("https://api.gdeltproject.org/api/v2/doc/doc", params)
+        payload = fetch_json("https://api.gdeltproject.org/api/v2/doc/doc", params, timeout=8)
         articles = payload.get("articles") or []
         items = [map_gdelt_article(article, index) for index, article in enumerate(articles[:6])]
         items = [item for item in items if item["title"]]
@@ -180,6 +180,7 @@ def build_research_feed_payload(keywords: list[str]) -> dict[str, Any]:
                     ),
                     "year": f"{datetime.now().year - 1}-",
                 },
+                timeout=12,
             )
 
             for paper in payload.get("data") or []:
@@ -223,7 +224,7 @@ def build_research_feed_payload(keywords: list[str]) -> dict[str, Any]:
         }
 
 
-def fetch_json(base_url: str, params: dict[str, str]) -> dict[str, Any]:
+def fetch_json(base_url: str, params: dict[str, str], timeout: int = 12) -> dict[str, Any]:
     request = Request(
         f"{base_url}?{urlencode(params)}",
         headers={
@@ -231,7 +232,7 @@ def fetch_json(base_url: str, params: dict[str, str]) -> dict[str, Any]:
             "Accept": "application/json",
         },
     )
-    with urlopen(request, timeout=20) as response:
+    with urlopen(request, timeout=timeout) as response:
         charset = response.headers.get_content_charset() or "utf-8"
         return json.loads(response.read().decode(charset))
 
