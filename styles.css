@@ -1705,6 +1705,89 @@ button:disabled {
   min-height: 132px;
 }
 
+.feed-cover-music-card {
+  grid-template-columns: 88px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  min-height: 92px;
+  padding: 14px;
+}
+
+.feed-cover-music-card.is-featured {
+  min-height: 104px;
+}
+
+.feed-cover-music-card .feed-cover-art {
+  position: relative;
+  inset: auto;
+  width: 88px;
+  height: 88px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 16px 28px rgba(0, 0, 0, 0.24);
+  transform: none;
+  z-index: 1;
+}
+
+.feed-cover-music-card .feed-cover-art-overlay {
+  inset: auto;
+  width: 88px;
+  height: 88px;
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.04), transparent 46%),
+    linear-gradient(180deg, rgba(4, 8, 18, 0.02), rgba(4, 8, 18, 0.2));
+  z-index: 2;
+}
+
+.feed-cover-copy {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.feed-cover-music-card .feed-cover-top {
+  gap: 8px;
+}
+
+.feed-cover-music-card .feed-cover-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+}
+
+.feed-cover-music-card .feed-cover-provider {
+  font-size: 0.76rem;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(247, 251, 255, 0.76);
+}
+
+.feed-cover-music-card strong {
+  max-width: none;
+  font-size: clamp(1.02rem, 1.6vw, 1.34rem);
+  line-height: 1.08;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.feed-cover-music-card .feed-cover-caption {
+  font-size: 0.88rem;
+  line-height: 1.35;
+  color: rgba(247, 251, 255, 0.84);
+}
+
+.feed-cover-meta-line {
+  font-size: 0.78rem;
+  color: rgba(247, 251, 255, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .feed-item::before {
   content: "";
   position: absolute;
@@ -2384,6 +2467,27 @@ button:disabled {
 
   .feed-cover strong {
     max-width: none;
+  }
+
+  .feed-cover-music-card {
+    grid-template-columns: 72px minmax(0, 1fr);
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .feed-cover-music-card .feed-cover-art,
+  .feed-cover-music-card .feed-cover-art-overlay {
+    width: 72px;
+    height: 72px;
+    border-radius: 16px;
+  }
+
+  .feed-cover-music-card strong {
+    font-size: 1rem;
+  }
+
+  .feed-cover-meta-line {
+    font-size: 0.74rem;
   }
 
   .spotlight-lead h3 {

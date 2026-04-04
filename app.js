@@ -1033,16 +1033,23 @@ function buildCoverLabel(type) {
 
 function buildCoverCaption(type, item) {
   if (type === "research") return item.relevance || item.region || item.provider;
-  if (type === "music") return item.relevance || item.provider || item.region;
+  if (type === "music") return item.artist || item.relevance || item.provider || item.region;
   return item.provider || item.region || item.relevance;
 }
 
 function buildCoverToken(type, item) {
-  const raw = type === "music" ? item.relevance || item.title : item.region || item.relevance || item.provider;
+  const raw = type === "music" ? item.title : item.region || item.relevance || item.provider;
   return String(raw || streamTitle(type))
     .replace(/[^\p{L}\p{N}\s/+.-]/gu, "")
     .trim()
     .slice(0, 30);
+}
+
+function buildMusicArtworkUrl(item) {
+  if (item.artwork) return item.artwork;
+  const title = encodeURIComponent(item.title || "");
+  const artist = encodeURIComponent(item.artist || item.relevance || "");
+  return `/api/music-art?title=${title}&artist=${artist}`;
 }
 
 function buildFeedCoverMarkup(type, item, index) {
@@ -1050,11 +1057,11 @@ function buildFeedCoverMarkup(type, item, index) {
   const coverToken = buildCoverToken(type, item);
   const coverCaption = buildCoverCaption(type, item);
   const artworkMarkup =
-    type === "music" && item.artwork
+    type === "music"
       ? `
       <img
         class="feed-cover-art"
-        src="${escapeAttribute(item.artwork)}"
+        src="${escapeAttribute(buildMusicArtworkUrl(item))}"
         alt="${escapeAttribute(`${item.title} cover`)}"
         loading="lazy"
         referrerpolicy="no-referrer"
@@ -1062,9 +1069,25 @@ function buildFeedCoverMarkup(type, item, index) {
       <div class="feed-cover-art-overlay"></div>
     `
       : "";
-  return `
-    <div class="feed-cover feed-cover-${type}${index === 0 ? " is-featured" : ""}${artworkMarkup ? " has-artwork" : ""}">
+  if (type === "music") {
+    return `
+    <div class="feed-cover feed-cover-music-card feed-cover-${type}${index === 0 ? " is-featured" : ""} has-artwork">
       ${artworkMarkup}
+      <div class="feed-cover-copy">
+        <div class="feed-cover-top">
+          <span class="feed-cover-label">${escapeHtml(buildCoverLabel(type))}</span>
+          <span class="feed-cover-provider">${escapeHtml(item.provider || streamTitle(type))}</span>
+        </div>
+        <strong>${escapeHtml(coverToken || streamTitle(type))}</strong>
+        <div class="feed-cover-caption">${escapeHtml(coverCaption || recommendation || streamTitle(type))}</div>
+        <div class="feed-cover-meta-line">${escapeHtml(item.region || "Trending")} · ${escapeHtml(item.signal || "Hot track")}</div>
+      </div>
+    </div>
+  `;
+  }
+
+  return `
+    <div class="feed-cover feed-cover-${type}${index === 0 ? " is-featured" : ""}">
       <div class="feed-cover-top">
         <span class="feed-cover-label">${escapeHtml(buildCoverLabel(type))}</span>
         <span class="feed-cover-provider">${escapeHtml(item.provider || streamTitle(type))}</span>

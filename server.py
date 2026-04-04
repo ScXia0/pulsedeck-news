@@ -167,6 +167,7 @@ MUSIC_FALLBACK = [
     {
         "id": "music-fallback-1",
         "title": "Ordinary",
+        "artist": "Alex Warren",
         "summary": "近期在主流播放平台和短视频里都很活跃，适合用来代表当下的高热单曲。",
         "genre": "Pop",
         "signal": "后备数据",
@@ -179,6 +180,7 @@ MUSIC_FALLBACK = [
     {
         "id": "music-fallback-2",
         "title": "Die With A Smile",
+        "artist": "Lady Gaga & Bruno Mars",
         "summary": "跨平台传播力强，常见于热门歌单、翻唱和视频剪辑内容里。",
         "genre": "Pop",
         "signal": "后备数据",
@@ -191,6 +193,7 @@ MUSIC_FALLBACK = [
     {
         "id": "music-fallback-3",
         "title": "APT.",
+        "artist": "ROSÉ & Bruno Mars",
         "summary": "兼具全球热度和亚洲讨论度，是近期跨区传播非常强的代表性热歌。",
         "genre": "Global Pop",
         "signal": "后备数据",
@@ -203,6 +206,7 @@ MUSIC_FALLBACK = [
     {
         "id": "music-fallback-4",
         "title": "Beautiful Things",
+        "artist": "Benson Boone",
         "summary": "在流媒体和翻唱生态里持续保持高曝光，属于很稳的热门单曲。",
         "genre": "Pop Rock",
         "signal": "后备数据",
@@ -215,6 +219,7 @@ MUSIC_FALLBACK = [
     {
         "id": "music-fallback-5",
         "title": "Birds of a Feather",
+        "artist": "Billie Eilish",
         "summary": "兼具审美型用户与主流用户关注度，常被各类精选歌单反复收录。",
         "genre": "Alt Pop",
         "signal": "后备数据",
@@ -227,6 +232,7 @@ MUSIC_FALLBACK = [
     {
         "id": "music-fallback-6",
         "title": "Lose Control",
+        "artist": "Teddy Swims",
         "summary": "电台、流媒体和现场表演传播都比较稳，适合做热歌池的高频补位。",
         "genre": "Soul Pop",
         "signal": "后备数据",
@@ -458,6 +464,20 @@ class PulseDeckHandler(SimpleHTTPRequestHandler):
             self.respond_json({"status": "ok", "time": utc_now_iso()})
             return
 
+        if parsed.path == "/api/music-art":
+            query = parse_qs(parsed.query)
+            title = clean_text(query.get("title", [""])[0])
+            artist = clean_text(query.get("artist", [""])[0])
+            artwork = resolve_music_artwork({"title": title, "artist": artist})
+            if artwork:
+                self.send_response(HTTPStatus.FOUND.value)
+                self.send_header("Location", artwork)
+                self.send_header("Cache-Control", "public, max-age=86400")
+                self.end_headers()
+                return
+            self.respond_music_art_placeholder(title, artist)
+            return
+
         if parsed.path in {"/api/world", "/api/research", "/api/music", "/api/entertainment"}:
             query = parse_qs(parsed.query)
             keywords = normalize_keywords(query.get("keywords", [""])[0])
@@ -484,6 +504,33 @@ class PulseDeckHandler(SimpleHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
+
+    def respond_music_art_placeholder(self, title: str, artist: str) -> None:
+        primary = html.escape((title or "Music")[:20])
+        secondary = html.escape((artist or "Track")[:20])
+        svg = f"""
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" role="img" aria-label="{primary}">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffb067"/>
+      <stop offset="100%" stop-color="#ff7eb6"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="320" rx="36" fill="#120d1e"/>
+  <rect x="18" y="18" width="284" height="284" rx="30" fill="url(#bg)"/>
+  <circle cx="160" cy="160" r="92" fill="#10162f" opacity="0.9"/>
+  <circle cx="160" cy="160" r="20" fill="#f4f7ff" opacity="0.9"/>
+  <path d="M208 92v96.5c-8-5.4-20.5-6.6-31.1-2.4-15.4 6.1-24.4 20.2-20.2 31.6 4.2 11.4 20 15.8 35.4 9.7 12.8-5 21.2-15.3 21.5-25.4l0.1-0.5V118l40-7v64.5c-8-5.4-20.5-6.6-31.1-2.4-15.4 6.1-24.4 20.2-20.2 31.6 4.2 11.4 20 15.8 35.4 9.7 12.9-5.1 21.4-15.6 21.5-25.8V88z" fill="#f6fbff" opacity="0.92"/>
+  <text x="34" y="265" fill="#f7fbff" font-family="Avenir Next, PingFang SC, sans-serif" font-size="24" font-weight="700">{primary}</text>
+  <text x="34" y="290" fill="#f7fbff" fill-opacity="0.78" font-family="Avenir Next, PingFang SC, sans-serif" font-size="15">{secondary}</text>
+</svg>
+        """.strip().encode("utf-8")
+        self.send_response(HTTPStatus.OK.value)
+        self.send_header("Content-Type", "image/svg+xml; charset=utf-8")
+        self.send_header("Content-Length", str(len(svg)))
+        self.send_header("Cache-Control", "public, max-age=86400")
+        self.end_headers()
+        self.wfile.write(svg)
 
 
 def get_cached_feed(feed_type: str, keywords: list[str], force_refresh: bool = False) -> dict[str, Any]:
