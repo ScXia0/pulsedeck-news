@@ -871,10 +871,12 @@ def parse_rss_feed(xml_text: str, provider: str, default_region: str) -> list[di
     for index, node in enumerate(root.findall("./channel/item")):
         title = clean_text(node.findtext("title"))
         url = clean_text(node.findtext("link"))
-        description = clean_html_text(node.findtext("description"))
+        raw_description = clean_text(node.findtext("description"))
+        description = clean_html_text(raw_description)
         category = clean_text(node.findtext("category")) or default_region
         published = format_feed_time(clean_text(node.findtext("pubDate")))
         sort_ts = parse_feed_timestamp(clean_text(node.findtext("pubDate")))
+        image = extract_rss_image_url(node, raw_description)
 
         if not title or not url:
             continue
@@ -891,6 +893,7 @@ def parse_rss_feed(xml_text: str, provider: str, default_region: str) -> list[di
                 "url": url,
                 "provider": provider,
                 "linkLabel": "查看原文",
+                "image": image,
                 "_sort_ts": sort_ts,
             }
         )
@@ -1325,6 +1328,38 @@ def normalize_space(value: str) -> str:
 
 def normalize_signal_key(value: str) -> str:
     return normalize_space(value).lower()[:96]
+
+
+def extract_rss_image_url(node: ET.Element, raw_html: str) -> str:
+    image = extract_match(
+        raw_html,
+        [
+            r'<img[^>]+src=["\']([^"\']+)["\']',
+            r'url=["\']([^"\']+)["\']',
+        ],
+    )
+    if image:
+        return html.unescape(image)
+
+    for child in list(node):
+        tag = child.tag.lower()
+        url = clean_text(child.get("url") or child.get("href"))
+        medium = clean_text(child.get("medium"))
+        mime_type = clean_text(child.get("type"))
+        if not url:
+            continue
+        if tag.endswith("thumbnail") or tag.endswith("content"):
+            if not medium or medium == "image" or mime_type.startswith("image/"):
+                return url
+
+    enclosure = node.find("enclosure")
+    if enclosure is not None:
+        url = clean_text(enclosure.get("url"))
+        mime_type = clean_text(enclosure.get("type"))
+        if url and mime_type.startswith("image/"):
+            return url
+
+    return ""
 
 
 def truncate(text: str, limit: int) -> str:

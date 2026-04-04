@@ -1788,6 +1788,60 @@ button:disabled {
   text-overflow: ellipsis;
 }
 
+.feed-cover-entertainment-card {
+  min-height: 158px;
+  padding: 0;
+  align-items: end;
+}
+
+.feed-cover-entertainment-card.is-featured {
+  min-height: 186px;
+}
+
+.feed-cover-entertainment-card .feed-cover-art,
+.feed-cover-entertainment-card .feed-cover-art-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.feed-cover-entertainment-card .feed-cover-art {
+  object-fit: cover;
+  transform: none;
+}
+
+.feed-cover-entertainment-card .feed-cover-art-overlay {
+  background:
+    linear-gradient(180deg, rgba(7, 8, 19, 0.08), rgba(7, 8, 19, 0.32) 42%, rgba(7, 8, 19, 0.92)),
+    linear-gradient(135deg, rgba(255, 126, 182, 0.16), transparent 42%);
+}
+
+.feed-cover-entertainment-card .feed-cover-copy {
+  gap: 8px;
+  padding: 18px;
+}
+
+.feed-cover-entertainment-card .feed-cover-provider {
+  font-size: 0.76rem;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(247, 251, 255, 0.84);
+}
+
+.feed-cover-entertainment-card strong {
+  max-width: 16ch;
+  font-size: clamp(1.18rem, 1.9vw, 1.55rem);
+  line-height: 1.06;
+}
+
+.feed-cover-entertainment-card .feed-cover-caption {
+  font-size: 0.9rem;
+  color: rgba(247, 251, 255, 0.88);
+}
+
 .feed-item::before {
   content: "";
   position: absolute;
@@ -1940,6 +1994,79 @@ button:disabled {
 
 .feed-panel.stream-entertainment .feed-item:not(.featured) {
   border-color: rgba(255, 126, 182, 0.14);
+}
+
+.feed-panel.stream-entertainment .feed-item-header {
+  margin-bottom: 10px;
+}
+
+.feed-panel.stream-entertainment .feed-item-headline {
+  gap: 8px;
+}
+
+.feed-panel.stream-entertainment .feed-priority,
+.feed-panel.stream-entertainment .tag,
+.feed-panel.stream-entertainment .stream-chip {
+  padding: 5px 9px;
+  font-size: 0.74rem;
+}
+
+.feed-panel.stream-entertainment .muted {
+  font-size: 0.82rem;
+}
+
+.entertainment-body-copy {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.entertainment-body-kicker {
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 126, 182, 0.88);
+}
+
+.feed-panel.stream-entertainment p {
+  margin-bottom: 0;
+  font-size: 0.97rem;
+  line-height: 1.66;
+}
+
+.entertainment-body-notes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 0.84rem;
+  color: rgba(247, 251, 255, 0.68);
+}
+
+.feed-panel.stream-entertainment .feed-meta {
+  gap: 8px;
+  font-size: 0.86rem;
+}
+
+.feed-panel.stream-entertainment .feed-reason {
+  padding: 10px 12px;
+  margin-top: 10px;
+  margin-bottom: 12px;
+}
+
+.feed-panel.stream-entertainment .feed-footer {
+  margin-top: 12px;
+  padding-top: 12px;
+}
+
+.feed-panel.stream-entertainment .feed-link {
+  min-width: 96px;
+  padding: 9px 13px;
+  font-size: 0.92rem;
+}
+
+.feed-panel.stream-entertainment .item-action {
+  padding: 8px 11px;
+  font-size: 0.82rem;
 }
 
 .feed-item-world::before {

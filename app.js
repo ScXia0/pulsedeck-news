@@ -459,6 +459,7 @@ function buildFallbackItems(type) {
     relevance: item.relevance || item.artist || "",
     artist: item.artist || "",
     artwork: item.artwork || "",
+    image: item.image || "",
   }));
 }
 
@@ -599,6 +600,7 @@ function normalizeItems(type, items = []) {
     relevance: item.relevance || item.artist || "",
     artist: item.artist || "",
     artwork: item.artwork || "",
+    image: item.image || "",
   }));
 }
 
@@ -1086,6 +1088,33 @@ function buildFeedCoverMarkup(type, item, index) {
   `;
   }
 
+  if (type === "entertainment") {
+    const imageMarkup = `
+      <img
+        class="feed-cover-art"
+        src="${escapeAttribute(buildEntertainmentImageUrl(item))}"
+        alt="${escapeAttribute(`${item.title} poster`)}"
+        loading="lazy"
+        referrerpolicy="no-referrer"
+      />
+      <div class="feed-cover-art-overlay"></div>
+    `;
+    return `
+    <div class="feed-cover feed-cover-entertainment-card feed-cover-${type}${index === 0 ? " is-featured" : ""} has-artwork">
+      ${imageMarkup}
+      <div class="feed-cover-copy">
+        <div class="feed-cover-top">
+          <span class="feed-cover-label">${escapeHtml(buildCoverLabel(type))}</span>
+          <span class="feed-cover-provider">${escapeHtml(item.provider || streamTitle(type))}</span>
+        </div>
+        <strong>${escapeHtml(item.title || streamTitle(type))}</strong>
+        <div class="feed-cover-caption">${escapeHtml(item.region || item.relevance || recommendation || streamTitle(type))}</div>
+        <div class="feed-cover-meta-line">${escapeHtml(item.signal || "Entertainment Watch")}</div>
+      </div>
+    </div>
+  `;
+  }
+
   return `
     <div class="feed-cover feed-cover-${type}${index === 0 ? " is-featured" : ""}">
       <div class="feed-cover-top">
@@ -1094,6 +1123,58 @@ function buildFeedCoverMarkup(type, item, index) {
       </div>
       <strong>${escapeHtml(coverToken || streamTitle(type))}</strong>
       <div class="feed-cover-caption">${escapeHtml(coverCaption || recommendation)}</div>
+    </div>
+  `;
+}
+
+function buildEntertainmentImageUrl(item) {
+  if (item.image) return item.image;
+  return buildEntertainmentPosterDataUrl(item.title || streamTitle("entertainment"), item.region || item.relevance || "Buzz");
+}
+
+function buildEntertainmentPosterDataUrl(title, accent) {
+  const safeTitle = String(title || "Entertainment").trim().slice(0, 32);
+  const safeAccent = String(accent || "Buzz").trim().slice(0, 20);
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" role="img" aria-label="${safeTitle}">
+      <defs>
+        <linearGradient id="entbg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#ff7eb6"/>
+          <stop offset="100%" stop-color="#ffb067"/>
+        </linearGradient>
+      </defs>
+      <rect width="480" height="320" rx="36" fill="#170a1f"/>
+      <rect x="18" y="18" width="444" height="284" rx="28" fill="url(#entbg)"/>
+      <circle cx="356" cy="110" r="92" fill="#ffffff" fill-opacity="0.12"/>
+      <rect x="54" y="64" width="170" height="206" rx="24" fill="#0d1328" fill-opacity="0.88"/>
+      <circle cx="139" cy="126" r="42" fill="#f6fbff" fill-opacity="0.92"/>
+      <path d="M102 196c12-21 31-32 57-32 26 0 45 11 57 32" stroke="#f6fbff" stroke-width="16" stroke-linecap="round" fill="none"/>
+      <text x="262" y="108" fill="#fff9fd" font-family="Avenir Next, PingFang SC, sans-serif" font-size="22" letter-spacing="4">ENTERTAINMENT</text>
+      <text x="262" y="165" fill="#fff9fd" font-family="Avenir Next, PingFang SC, sans-serif" font-size="34" font-weight="700">${escapeSvgText(safeTitle)}</text>
+      <text x="262" y="207" fill="#fff9fd" fill-opacity="0.8" font-family="Avenir Next, PingFang SC, sans-serif" font-size="20">${escapeSvgText(safeAccent)}</text>
+    </svg>
+  `.trim();
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+function escapeSvgText(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function buildEntertainmentBodyMarkup(item) {
+  return `
+    <div class="entertainment-body-copy">
+      <div class="entertainment-body-kicker">${escapeHtml(item.region || "Entertainment")}</div>
+      <p>${escapeHtml(item.summary)}</p>
+      <div class="entertainment-body-notes">
+        <span>焦点: ${escapeHtml(item.relevance || item.provider || "持续发酵")}</span>
+        <span>来源: ${escapeHtml(item.provider || "Entertainment Desk")}</span>
+      </div>
     </div>
   `;
 }
@@ -1209,6 +1290,8 @@ function renderFeed(type) {
           const bodyMarkup =
             type === "music"
               ? buildMusicBodyMarkup(item)
+              : type === "entertainment"
+                ? buildEntertainmentBodyMarkup(item)
               : `<h3>${escapeHtml(title)}</h3>
             <p>${escapeHtml(summary)}</p>`;
           return `
