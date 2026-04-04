@@ -1851,6 +1851,86 @@ button:disabled {
   box-shadow: 0 14px 30px rgba(255, 131, 74, 0.1);
 }
 
+.feed-panel.stream-music .feed-item-header {
+  margin-bottom: 10px;
+}
+
+.feed-panel.stream-music .feed-item-headline {
+  gap: 8px;
+}
+
+.feed-panel.stream-music .feed-priority,
+.feed-panel.stream-music .tag,
+.feed-panel.stream-music .stream-chip {
+  padding: 5px 9px;
+  font-size: 0.74rem;
+}
+
+.feed-panel.stream-music .muted {
+  font-size: 0.82rem;
+}
+
+.music-body-copy {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.music-body-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.music-artist-name {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+  color: rgba(247, 251, 255, 0.94);
+}
+
+.music-track-state {
+  font-size: 0.76rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(247, 251, 255, 0.58);
+}
+
+.feed-panel.stream-music p {
+  margin-bottom: 0;
+  font-size: 0.96rem;
+  line-height: 1.62;
+}
+
+.feed-panel.stream-music .feed-meta {
+  gap: 8px;
+  font-size: 0.86rem;
+}
+
+.feed-panel.stream-music .feed-reason {
+  padding: 10px 12px;
+  margin-top: 10px;
+  margin-bottom: 12px;
+}
+
+.feed-panel.stream-music .feed-footer {
+  margin-top: 12px;
+  padding-top: 12px;
+}
+
+.feed-panel.stream-music .feed-link {
+  min-width: 96px;
+  padding: 9px 13px;
+  font-size: 0.92rem;
+}
+
+.feed-panel.stream-music .item-action {
+  padding: 8px 11px;
+  font-size: 0.82rem;
+}
+
 .feed-panel.stream-entertainment .feed-item {
   background:
     linear-gradient(135deg, rgba(255, 126, 182, 0.08), transparent 34%),

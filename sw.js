@@ -1,12 +1,12 @@
-const CACHE_NAME = "pulse-deck-v18";
+const CACHE_NAME = "pulse-deck-v19";
 const ASSETS = [
   "./",
   "./index.html",
-  "./index.html?v=18",
-  "./styles.css?v=18",
-  "./app.js?v=18",
+  "./index.html?v=19",
+  "./styles.css?v=19",
+  "./app.js?v=19",
   "./data.js",
-  "./manifest.webmanifest?v=18",
+  "./manifest.webmanifest?v=19",
 ];
 
 self.addEventListener("install", (event) => {

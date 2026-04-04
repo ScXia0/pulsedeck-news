@@ -1098,6 +1098,18 @@ function buildFeedCoverMarkup(type, item, index) {
   `;
 }
 
+function buildMusicBodyMarkup(item) {
+  return `
+    <div class="music-body-copy">
+      <div class="music-body-topline">
+        <span class="music-artist-name">${escapeHtml(item.artist || item.relevance || "Unknown Artist")}</span>
+        <span class="music-track-state">${escapeHtml(item.signal || "Hot track")}</span>
+      </div>
+      <p>${escapeHtml(item.summary)}</p>
+    </div>
+  `;
+}
+
 function parseItemTimestamp(timestamp) {
   if (!timestamp) return 0;
   const match = String(timestamp).match(/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2})/);
@@ -1194,6 +1206,11 @@ function renderFeed(type) {
           const savedActive = Boolean(state.desk.saved[buildDeskKey(type, itemId)]);
           const laterActive = Boolean(state.desk.later[buildDeskKey(type, itemId)]);
           const recommendation = visibleReasons.get(itemId) || "";
+          const bodyMarkup =
+            type === "music"
+              ? buildMusicBodyMarkup(item)
+              : `<h3>${escapeHtml(title)}</h3>
+            <p>${escapeHtml(summary)}</p>`;
           return `
           <article class="${itemClass}${index === 0 ? " featured" : ""}">
             ${buildFeedCoverMarkup(type, item, index)}
@@ -1205,8 +1222,7 @@ function renderFeed(type) {
               </div>
               <span class="muted">${escapeHtml(timestamp)}</span>
             </div>
-            <h3>${escapeHtml(title)}</h3>
-            <p>${escapeHtml(summary)}</p>
+            ${bodyMarkup}
             <div class="feed-meta">
               <span class="tag ${signalClass}">${escapeHtml(signal)}</span>
               <span>${regionLabel}: ${escapeHtml(relevance || provider)}</span>
