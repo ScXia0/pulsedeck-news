@@ -1101,6 +1101,18 @@ function buildFeedCoverMarkup(type, item, index) {
   const recommendation = buildRecommendationReason(type, item);
   const coverToken = buildCoverToken(type, item);
   const coverCaption = buildCoverCaption(type, item);
+  const editorialArtworkMarkup =
+    type === "world" || type === "research"
+      ? `
+      <img
+        class="feed-cover-art"
+        src="${escapeAttribute(buildEditorialImageUrl(type, item))}"
+        alt="${escapeAttribute(`${item.title} visual`)}"
+        loading="lazy"
+      />
+      <div class="feed-cover-art-overlay"></div>
+    `
+      : "";
   const artworkMarkup =
     type === "music"
       ? `
@@ -1114,6 +1126,22 @@ function buildFeedCoverMarkup(type, item, index) {
       <div class="feed-cover-art-overlay"></div>
     `
       : "";
+  if (type === "world" || type === "research") {
+    return `
+    <div class="feed-cover feed-cover-editorial-card feed-cover-${type}-card feed-cover-${type}${index === 0 ? " is-featured" : ""} has-artwork">
+      ${editorialArtworkMarkup}
+      <div class="feed-cover-copy">
+        <div class="feed-cover-top">
+          <span class="feed-cover-label">${escapeHtml(buildCoverLabel(type))}</span>
+          <span class="feed-cover-provider">${escapeHtml(item.provider || streamTitle(type))}</span>
+        </div>
+        <strong>${escapeHtml(coverToken || streamTitle(type))}</strong>
+        <div class="feed-cover-caption">${escapeHtml(coverCaption || recommendation || streamTitle(type))}</div>
+        <div class="feed-cover-meta-line">${escapeHtml(item.signal || defaultSignal(type))} · ${escapeHtml(item.region || "Live pool")}</div>
+      </div>
+    </div>
+  `;
+  }
   if (type === "music") {
     return `
     <div class="feed-cover feed-cover-music-card feed-cover-${type}${index === 0 ? " is-featured" : ""} has-artwork">
@@ -1170,6 +1198,69 @@ function buildFeedCoverMarkup(type, item, index) {
   `;
 }
 
+function buildEditorialImageUrl(type, item) {
+  return buildEditorialPosterDataUrl(
+    type,
+    item.title || streamTitle(type),
+    item.region || item.relevance || item.provider || streamTitle(type),
+    item.provider || streamTitle(type),
+  );
+}
+
+function buildEditorialPosterDataUrl(type, title, accent, provider) {
+  const safeTitle = String(title || streamTitle(type)).trim().slice(0, 36);
+  const safeAccent = String(accent || "Live").trim().slice(0, 20);
+  const safeProvider = String(provider || streamTitle(type)).trim().slice(0, 18);
+  const palette =
+    type === "research"
+      ? {
+          primary: "#76ffbb",
+          secondary: "#6ddcff",
+          backdrop: "#08121d",
+          line: "rgba(118,255,187,0.38)",
+          label: "LAB NOTES",
+        }
+      : {
+          primary: "#78d8ff",
+          secondary: "#7a89ff",
+          backdrop: "#0b1426",
+          line: "rgba(120,216,255,0.34)",
+          label: "GLOBAL RADAR",
+        };
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 320" role="img" aria-label="${escapeSvgText(safeTitle)}">
+      <defs>
+        <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="${palette.primary}"/>
+          <stop offset="100%" stop-color="${palette.secondary}"/>
+        </linearGradient>
+      </defs>
+      <rect width="520" height="320" rx="32" fill="${palette.backdrop}"/>
+      <rect x="24" y="24" width="472" height="272" rx="24" fill="url(#panel)" fill-opacity="0.18"/>
+      <g stroke="${palette.line}" stroke-width="1">
+        <path d="M48 88H472"/>
+        <path d="M48 128H472"/>
+        <path d="M48 168H472"/>
+        <path d="M48 208H472"/>
+        <path d="M48 248H472"/>
+        <path d="M132 56V272"/>
+        <path d="M216 56V272"/>
+        <path d="M300 56V272"/>
+        <path d="M384 56V272"/>
+      </g>
+      <circle cx="398" cy="112" r="78" fill="${palette.primary}" fill-opacity="0.12"/>
+      <circle cx="132" cy="214" r="54" fill="${palette.secondary}" fill-opacity="0.14"/>
+      <rect x="56" y="62" width="156" height="32" rx="16" fill="${palette.primary}" fill-opacity="0.22"/>
+      <text x="78" y="84" fill="#f7fbff" fill-opacity="0.86" font-family="Avenir Next, PingFang SC, sans-serif" font-size="18" letter-spacing="3">${palette.label}</text>
+      <text x="56" y="148" fill="#f7fbff" font-family="Avenir Next, PingFang SC, sans-serif" font-size="36" font-weight="700">${escapeSvgText(safeTitle)}</text>
+      <text x="56" y="196" fill="#f7fbff" fill-opacity="0.82" font-family="Avenir Next, PingFang SC, sans-serif" font-size="22">${escapeSvgText(safeAccent)}</text>
+      <text x="56" y="246" fill="#f7fbff" fill-opacity="0.62" font-family="Avenir Next, PingFang SC, sans-serif" font-size="18">${escapeSvgText(safeProvider)}</text>
+      <path d="M332 214c18-34 38-60 60-78 22 16 40 41 54 75" fill="none" stroke="${palette.primary}" stroke-width="14" stroke-linecap="round"/>
+    </svg>
+  `.trim();
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
 function buildEntertainmentImageUrl(item) {
   if (item.image) return item.image;
   return buildEntertainmentPosterDataUrl(item.title || streamTitle("entertainment"), item.region || item.relevance || "Buzz");
@@ -1214,6 +1305,10 @@ function buildEntertainmentBodyMarkup(item) {
     <div class="entertainment-body-copy">
       <div class="entertainment-body-kicker">${escapeHtml(item.region || "Entertainment")}</div>
       <p>${escapeHtml(item.summary)}</p>
+      <div class="story-note-grid entertainment-note-grid">
+        ${buildStoryMetricMarkup("关注面", item.relevance || "持续发酵")}
+        ${buildStoryMetricMarkup("信号", item.signal || "Entertainment Watch")}
+      </div>
       <div class="entertainment-body-notes">
         <span>焦点: ${escapeHtml(item.relevance || item.provider || "持续发酵")}</span>
         <span>来源: ${escapeHtml(item.provider || "Entertainment Desk")}</span>
@@ -1230,6 +1325,53 @@ function buildMusicBodyMarkup(item) {
         <span class="music-track-state">${escapeHtml(item.signal || "Hot track")}</span>
       </div>
       <p>${escapeHtml(item.summary)}</p>
+      <div class="story-note-grid music-note-grid">
+        ${buildStoryMetricMarkup("流派", item.region || "Trending")}
+        ${buildStoryMetricMarkup("来源", item.provider || "Chart feed")}
+      </div>
+    </div>
+  `;
+}
+
+function buildWorldBodyMarkup(item) {
+  return `
+    <div class="story-body story-body-world">
+      <h3>${escapeHtml(item.title)}</h3>
+      <p>${escapeHtml(item.summary)}</p>
+      <div class="story-insight-row">
+        <span class="story-insight-pill">影响面 ${escapeHtml(item.region || "Global")}</span>
+        <span class="story-insight-pill">${escapeHtml(item.signal || "实时观察")}</span>
+      </div>
+      <div class="story-note-grid">
+        ${buildStoryMetricMarkup("关键线索", item.relevance || item.provider || "持续跟踪")}
+        ${buildStoryMetricMarkup("来源", item.provider || "Global Desk")}
+      </div>
+    </div>
+  `;
+}
+
+function buildResearchBodyMarkup(item) {
+  return `
+    <div class="story-body story-body-research">
+      <h3>${escapeHtml(item.title)}</h3>
+      <p>${escapeHtml(item.summary)}</p>
+      <div class="story-insight-row">
+        <span class="story-insight-pill">方向 ${escapeHtml(item.region || "Research")}</span>
+        <span class="story-insight-pill">${escapeHtml(item.signal || "Recent paper")}</span>
+      </div>
+      <div class="story-note-grid">
+        ${buildStoryMetricMarkup("落地方向", item.relevance || item.provider || "等待补充")}
+        ${buildStoryMetricMarkup("来源", item.provider || "Research Desk")}
+      </div>
+    </div>
+  `;
+}
+
+function buildStoryMetricMarkup(label, value) {
+  return `
+    <div class="story-note">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value || "待补充")}</strong>
     </div>
   `;
 }
@@ -1331,12 +1473,13 @@ function renderFeed(type) {
           const laterActive = Boolean(state.desk.later[buildDeskKey(type, itemId)]);
           const recommendation = visibleReasons.get(itemId) || "";
           const bodyMarkup =
-            type === "music"
-              ? buildMusicBodyMarkup(item)
-              : type === "entertainment"
-                ? buildEntertainmentBodyMarkup(item)
-              : `<h3>${escapeHtml(title)}</h3>
-            <p>${escapeHtml(summary)}</p>`;
+            type === "world"
+              ? buildWorldBodyMarkup(item)
+              : type === "research"
+                ? buildResearchBodyMarkup(item)
+                : type === "music"
+                  ? buildMusicBodyMarkup(item)
+                  : buildEntertainmentBodyMarkup(item);
           return `
           <article class="${itemClass}${index === 0 ? " featured" : ""}">
             ${buildFeedCoverMarkup(type, item, index)}
