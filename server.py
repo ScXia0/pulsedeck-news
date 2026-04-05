@@ -446,6 +446,7 @@ ENTERTAINMENT_GOOGLE_QUERIES = [
 
 feed_cache: dict[tuple[str, str], dict[str, Any]] = {}
 music_art_cache: dict[str, dict[str, Any]] = {}
+link_image_cache: dict[str, dict[str, Any]] = {}
 
 
 class PulseDeckHandler(SimpleHTTPRequestHandler):
@@ -579,6 +580,8 @@ def build_world_feed_payload(keywords: list[str]) -> dict[str, Any]:
     if not pool:
         return fallback_payload("world", errors)
 
+    pool = enrich_items_with_link_images(pool)
+
     providers = summarize_providers(pool)
     return {
         "mode": "live",
@@ -648,6 +651,8 @@ def build_entertainment_feed_payload(keywords: list[str]) -> dict[str, Any]:
     if not pool:
         return fallback_payload("entertainment", errors)
 
+    pool = enrich_items_with_link_images(pool)
+
     providers = summarize_providers(pool)
     return {
         "mode": "live",
@@ -684,6 +689,33 @@ def fallback_payload(feed_type: str, errors: list[str]) -> dict[str, Any]:
         "batchSize": BATCH_SIZE,
         "items": items,
     }
+
+
+def enrich_items_with_link_images(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    enriched = [dict(item) for item in items]
+    pending = [
+        (index, item)
+        for index, item in enumerate(enriched)
+        if item.get("url") and not item.get("image") and not str(item.get("url")).lower().endswith(".pdf")
+    ]
+    if not pending:
+        return enriched
+
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        futures = {
+            executor.submit(resolve_link_preview_image, str(item.get("url", ""))): index
+            for index, item in pending[:24]
+        }
+        for future in as_completed(futures):
+            index = futures[future]
+            try:
+                image = future.result()
+            except Exception:  # noqa: BLE001
+                image = ""
+            if image:
+                enriched[index]["image"] = image
+
+    return enriched
 
 
 def build_world_sources(keywords: list[str]) -> list[dict[str, Any]]:
@@ -1183,6 +1215,27 @@ def resolve_music_artwork(item: dict[str, Any]) -> str:
     return artwork
 
 
+def resolve_link_preview_image(url: str) -> str:
+    if not url:
+        return ""
+
+    cache_key = normalize_signal_key(url)
+    now = time.time()
+    cached = link_image_cache.get(cache_key)
+    if cached and now - cached["stored_at"] < CACHE_TTL_SECONDS:
+        return cached.get("image", "")
+
+    image = ""
+    try:
+        html_text = fetch_text(url, timeout=6)
+        image = extract_link_preview_image(html_text, url)
+    except Exception:  # noqa: BLE001
+        image = ""
+
+    link_image_cache[cache_key] = {"stored_at": now, "image": image}
+    return image
+
+
 def build_gdelt_query(base_query: str, keywords: list[str]) -> str:
     extras = " OR ".join(quote_phrase(keyword) for keyword in keywords[:2] if keyword)
     if extras:
@@ -1381,6 +1434,31 @@ def extract_rss_image_url(node: ET.Element, raw_html: str) -> str:
         if url and mime_type.startswith("image/"):
             return url
 
+    return ""
+
+
+def extract_link_preview_image(html_text: str, page_url: str) -> str:
+    image = extract_match(
+        html_text,
+        [
+            r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']',
+            r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']',
+            r'<meta[^>]+name=["\']twitter:image["\'][^>]+content=["\']([^"\']+)["\']',
+            r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']twitter:image["\']',
+            r'<img[^>]+src=["\']([^"\']+)["\']',
+        ],
+    )
+    if not image:
+        return ""
+
+    image = html.unescape(image)
+    if image.startswith("//"):
+        return "https:" + image
+    if image.startswith("/"):
+        parsed = urlparse(page_url)
+        return f"{parsed.scheme}://{parsed.netloc}{image}"
+    if image.startswith("http://") or image.startswith("https://"):
+        return image
     return ""
 
 
