@@ -20,6 +20,8 @@ const DEFAULT_SETTINGS = {
   entertainmentEnabled: true,
   entertainmentInterval: 210,
   keywords: "OpenAI, agent, LLM, NLP, geopolitics, startup",
+  subscribedTopics: ["OpenAI", "Agents", "Startups"],
+  digestMode: "morning",
 };
 const DEFAULT_BATCH_SIZE = 6;
 const STREAM_TYPES = ["world", "research", "music", "entertainment"];
@@ -152,6 +154,9 @@ const elements = {
   musicInterval: document.querySelector("#musicInterval"),
   entertainmentInterval: document.querySelector("#entertainmentInterval"),
   keywordInput: document.querySelector("#keywordInput"),
+  topicInput: document.querySelector("#topicInput"),
+  addTopicBtn: document.querySelector("#addTopicBtn"),
+  topicChips: document.querySelector("#topicChips"),
   worldFeed: document.querySelector("#worldFeed"),
   researchFeed: document.querySelector("#researchFeed"),
   musicFeed: document.querySelector("#musicFeed"),
@@ -187,6 +192,7 @@ const elements = {
   sourceSummary: document.querySelector("#sourceSummary"),
   jumpLinks: document.querySelectorAll("[data-section]"),
   viewButtons: document.querySelectorAll("[data-view-action]"),
+  digestModeButtons: document.querySelectorAll("[data-digest-mode]"),
 };
 
 void initialize();
@@ -341,6 +347,32 @@ function syncControlsFromSettings() {
   elements.musicInterval.value = state.settings.musicInterval;
   elements.entertainmentInterval.value = state.settings.entertainmentInterval;
   elements.keywordInput.value = state.settings.keywords;
+  renderTopicChips();
+  syncDigestModeControls();
+}
+
+function renderTopicChips() {
+  if (!elements.topicChips) return;
+  const topics = getSubscribedTopics();
+  elements.topicChips.innerHTML = topics.length
+    ? topics
+        .map(
+          (topic) => `
+            <button class="topic-chip" type="button" data-topic-action="remove" data-topic="${escapeAttribute(topic)}">
+              <span>${escapeHtml(topic)}</span>
+              <span class="topic-chip-remove">×</span>
+            </button>
+          `,
+        )
+        .join("")
+    : '<div class="topic-chip-empty">还没有订阅主题。加几个你真正关心的话题，首页会更像你的私人情报台。</div>';
+}
+
+function syncDigestModeControls() {
+  elements.digestModeButtons?.forEach((button) => {
+    const active = button.dataset.digestMode === normalizeDigestMode(state.settings.digestMode);
+    button.classList.toggle("is-active", active);
+  });
 }
 
 function syncViewControls() {
@@ -374,6 +406,11 @@ function bindEvents() {
   elements.clearViewFiltersBtn?.addEventListener("click", clearViewFilters);
   elements.backToTopBtn?.addEventListener("click", scrollToTop);
   elements.globalSearchInput?.addEventListener("input", handleSearchInput);
+  elements.addTopicBtn?.addEventListener("click", handleAddTopic);
+  elements.topicInput?.addEventListener("keydown", handleTopicInputKeydown);
+  elements.digestModeButtons?.forEach((button) => {
+    button.addEventListener("click", handleDigestModeToggle);
+  });
   elements.refreshWorldBtn.addEventListener("click", () => refreshStream("world", { manual: true }));
   elements.refreshResearchBtn.addEventListener("click", () =>
     refreshStream("research", { manual: true }),
@@ -398,6 +435,12 @@ function bindEvents() {
     const viewButton = event.target.closest("[data-view-action]");
     if (viewButton) {
       handleViewAction(viewButton);
+      return;
+    }
+
+    const topicButton = event.target.closest("[data-topic-action]");
+    if (topicButton) {
+      handleTopicChipAction(topicButton);
       return;
     }
 
@@ -470,7 +513,7 @@ async function refreshStream(type, { manual = false } = {}) {
   updateButtonState(type);
   renderFeed(type);
 
-  const endpoint = `/api/${type}?keywords=${encodeURIComponent(state.settings.keywords)}${
+  const endpoint = `/api/${type}?keywords=${encodeURIComponent(getFocusKeywordString())}${
     manual ? `&force=1&_ts=${Date.now()}` : ""
   }`;
 
@@ -871,10 +914,7 @@ function compareItems(type, first, second) {
 function scoreItem(type, item) {
   let score = type === "world" ? 18 : type === "research" ? 17 : type === "music" ? 15 : 16;
   const key = buildDeskKey(type, item.id);
-  const focusTerms = state.settings.keywords
-    .split(",")
-    .map((term) => term.trim().toLowerCase())
-    .filter(Boolean);
+  const focusTerms = getFocusTerms().map((term) => term.toLowerCase());
   const text = [item.title, item.summary, item.provider, item.relevance, item.signal]
     .filter(Boolean)
     .join(" ")
@@ -995,10 +1035,8 @@ function pruneProfileState() {
 function buildRecommendationReason(type, item) {
   const reasons = [];
   const key = buildDeskKey(type, item.id);
-  const focusTerms = state.settings.keywords
-    .split(",")
-    .map((term) => term.trim())
-    .filter(Boolean);
+  const keywordTerms = getManualKeywords();
+  const subscribedTopics = getSubscribedTopics();
   const text = [item.title, item.summary, item.provider, item.region, item.relevance]
     .filter(Boolean)
     .join(" ")
@@ -1008,13 +1046,18 @@ function buildRecommendationReason(type, item) {
   if (state.desk.later[key]) reasons.push("已进入稍后看");
   if (state.profile.streamWeights[type] > 10) reasons.push(`你最近偏爱${streamTitle(type)}`);
 
-  const keywordHit = focusTerms.find((term) => text.includes(term.toLowerCase()));
+  const keywordHit = keywordTerms.find((term) => text.includes(term.toLowerCase()));
   if (keywordHit) {
     reasons.push(`命中关键词 ${keywordHit}`);
   }
 
+  const topicHit = subscribedTopics.find((term) => text.includes(term.toLowerCase()));
+  if (!keywordHit && topicHit) {
+    reasons.push(`贴近你订阅的 ${topicHit}`);
+  }
+
   const affinity = getProfileAffinity(type, item);
-  if (!keywordHit && affinity.matchedSignals.length && affinity.matchedSignals[0].weight >= 2.4) {
+  if (!keywordHit && !topicHit && affinity.matchedSignals.length && affinity.matchedSignals[0].weight >= 2.4) {
     reasons.push(
       `和你常看的 ${affinity.matchedSignals
         .slice(0, 2)
@@ -1416,6 +1459,7 @@ function buildSourceSummaryMarkup() {
 
 function handleSaveSettings() {
   state.settings = {
+    ...state.settings,
     worldEnabled: elements.worldToggle.checked,
     researchEnabled: elements.researchToggle.checked,
     musicEnabled: elements.musicToggle.checked,
@@ -1425,12 +1469,15 @@ function handleSaveSettings() {
     musicInterval: clampMinutes(elements.musicInterval.value),
     entertainmentInterval: clampMinutes(elements.entertainmentInterval.value),
     keywords: elements.keywordInput.value.trim(),
+    subscribedTopics: getSubscribedTopics(),
+    digestMode: normalizeDigestMode(state.settings.digestMode),
   };
   syncControlsFromSettings();
   saveSettings();
   startSchedulers();
   void Promise.all(STREAM_TYPES.map((type) => refreshStream(type)));
-  showToastCard("设置已保存", "新的关键词和轮询节奏已经开始生效。");
+  maybeRefreshDigest({ silent: true });
+  showToastCard("设置已保存", "关键词、订阅主题和摘要模式已经开始生效。");
 }
 
 function pauseAllSchedules() {
@@ -1525,18 +1572,30 @@ function updateNotificationState(permission = "Notification" in window ? Notific
   elements.notificationState.textContent = map[permission] || "未授权";
 }
 
-function generateDigest() {
+function generateDigest({ silent = false } = {}) {
+  const digestMode = normalizeDigestMode(state.settings.digestMode);
   const digest = buildDigest(
     state.worldItems,
     state.researchItems,
     state.musicItems,
     state.entertainmentItems,
-    state.settings.keywords,
+    {
+      keywords: state.settings.keywords,
+      subscribedTopics: getSubscribedTopics(),
+      digestMode,
+    },
   );
   elements.digestOutput.dataset.plaintext = digest;
   elements.digestOutput.innerHTML = buildDigestMarkup();
   elements.lastDigestTime.textContent = `最近摘要: ${formatTime(new Date())}`;
-  showToastCard("今日摘要已生成", "当前简报已经根据最新信息流重组。");
+  if (!silent) {
+    showToastCard(
+      digestMode === "evening" ? "晚报已生成" : "晨报已生成",
+      digestMode === "evening"
+        ? "当前内容流已经整理成一版适合回看和复盘的晚间摘要。"
+        : "当前内容流已经整理成一版适合快速扫读的晨间摘要。",
+    );
+  }
 }
 
 function bindScrollExperience() {
@@ -1769,49 +1828,56 @@ function renderPulseRail() {
 }
 
 function buildDigestMarkup() {
+  const digestMode = normalizeDigestMode(state.settings.digestMode);
+  const modeConfig = getDigestModeConfig(digestMode);
   const liveCount = STREAM_TYPES.filter((type) => state.sourceMeta[type].mode === "live").length;
   const topInterestTerms = Object.entries(state.profile.termWeights)
     .sort((first, second) => second[1] - first[1])
     .slice(0, 3)
     .map(([key]) => state.profile.termLabels[key] || key);
+  const subscribedTopics = getSubscribedTopics();
   const spotlight = buildSpotlightItems()[0];
 
   return `
-    <div class="digest-shell">
+    <div class="digest-shell digest-shell-${digestMode}">
       <div class="digest-summary-head">
-        <span class="digest-mark">Briefing</span>
-        <strong>今日情报简报</strong>
-        <span class="muted">关键词: ${escapeHtml(state.settings.keywords || "未设置")}</span>
+        <span class="digest-mark digest-mark-${digestMode}">${escapeHtml(modeConfig.mark)}</span>
+        <strong>${escapeHtml(modeConfig.title)}</strong>
+        <span class="muted">关键词池: ${escapeHtml(getFocusKeywordString() || "未设置")}</span>
       </div>
       <div class="digest-hero">
         <div class="digest-hero-copy">
-          <span class="digest-hero-kicker">Morning Lens</span>
-          <h3>${escapeHtml(spotlight?.title || "正在整理今日最值得先看的内容")}</h3>
+          <span class="digest-hero-kicker">${escapeHtml(modeConfig.kicker)}</span>
+          <h3>${escapeHtml(spotlight?.title || modeConfig.fallbackTitle)}</h3>
           <p>${escapeHtml(
             spotlight?.summary ||
-              "四条内容流正在把热点、研究、音乐和娱乐压缩成一版更适合快速浏览的情报日报。",
+              modeConfig.fallbackSummary,
           )}</p>
         </div>
         <div class="digest-stat-grid">
           <div class="digest-statline">
-            <span>在线内容流</span>
+            <span>${escapeHtml(modeConfig.streamLabel)}</span>
             <strong>${liveCount} / ${STREAM_TYPES.length}</strong>
           </div>
           <div class="digest-statline">
-            <span>你的兴趣偏向</span>
+            <span>订阅主题</span>
+            <strong>${escapeHtml(formatTopicSummary(subscribedTopics, 4) || "还没有设置")}</strong>
+          </div>
+          <div class="digest-statline">
+            <span>${escapeHtml(modeConfig.interestLabel)}</span>
             <strong>${escapeHtml(topInterestTerms.join(" / ") || "正在学习中")}</strong>
           </div>
           <div class="digest-statline">
-            <span>当前排序方式</span>
+            <span>${escapeHtml(modeConfig.sortLabel)}</span>
             <strong>${escapeHtml(state.view.sortMode === "recent" ? "最新优先" : "智能推荐")}</strong>
           </div>
         </div>
       </div>
       <div class="digest-grid">
-        ${buildDigestCard("world", state.worldItems, "影响面")}
-        ${buildDigestCard("research", state.researchItems, "落地方向")}
-        ${buildDigestCard("music", state.musicItems, "热度线索")}
-        ${buildDigestCard("entertainment", state.entertainmentItems, "关注面")}
+        ${buildDigestCard("world", state.worldItems, "影响面", modeConfig)}
+        ${buildDigestCard("research", state.researchItems, "落地方向", modeConfig)}
+        ${buildDigestCard("music", state.musicItems, "热度线索", modeConfig)}
+        ${buildDigestCard("entertainment", state.entertainmentItems, "关注面", modeConfig)}
       </div>
     </div>
   `;
@@ -1828,12 +1894,14 @@ function renderFocusConsole() {
         ? "稍后看"
         : "全部内容";
   const sortLabel = state.view.sortMode === "recent" ? "最新优先" : "智能排序";
+  const topics = getSubscribedTopics();
 
   elements.focusSummary.textContent = `${totalResults} RESULTS`;
   elements.focusResultHint.textContent = [
     `当前范围: ${scopeLabel}`,
     `开启流: ${activeStreams} 个`,
     `排序: ${sortLabel}`,
+    `订阅主题: ${topics.length ? formatTopicSummary(topics, 3) : "未设置"}`,
     state.view.query ? `搜索: ${state.view.query}` : "搜索: 未输入",
   ].join(" · ");
 }
@@ -1856,7 +1924,7 @@ function isDefaultView() {
   );
 }
 
-function buildDigestCard(type, items, insightLabel) {
+function buildDigestCard(type, items, insightLabel, modeConfig) {
   const visibleItems = items.filter((item) => !isDismissed(type, item.id));
   const lead = visibleItems[0];
   const follow = visibleItems[1];
@@ -1874,12 +1942,12 @@ function buildDigestCard(type, items, insightLabel) {
       <p>${escapeHtml(lead?.summary || "等待下一次内容轮换。")}</p>
       <div class="digest-story-list">
         <div class="digest-story-item">
-          <span class="digest-story-label">主线</span>
+          <span class="digest-story-label">${escapeHtml(modeConfig.primaryStoryLabel)}</span>
           <strong>${escapeHtml(lead?.relevance || lead?.provider || "待补充")}</strong>
           <span>${escapeHtml(leadReason)}</span>
         </div>
         <div class="digest-story-item">
-          <span class="digest-story-label">次线</span>
+          <span class="digest-story-label">${escapeHtml(modeConfig.secondaryStoryLabel)}</span>
           <strong>${escapeHtml(follow?.title || "暂无补充线索")}</strong>
           <span>${escapeHtml(followReason)}</span>
         </div>
@@ -1956,6 +2024,150 @@ function defaultSignal(type) {
   if (type === "research") return "实时更新";
   if (type === "entertainment") return "娱乐资讯";
   return "热歌榜单";
+}
+
+function getManualKeywords() {
+  return dedupeFocusTerms(splitFocusTerms(state.settings.keywords));
+}
+
+function getSubscribedTopics() {
+  const raw = Array.isArray(state.settings.subscribedTopics)
+    ? state.settings.subscribedTopics
+    : splitFocusTerms(state.settings.subscribedTopics);
+  return dedupeFocusTerms(raw, { limit: 12, maxLength: 28 });
+}
+
+function getFocusTerms() {
+  return dedupeFocusTerms([...getManualKeywords(), ...getSubscribedTopics()], {
+    limit: 18,
+    maxLength: 36,
+  });
+}
+
+function getFocusKeywordString() {
+  return getFocusTerms().join(", ");
+}
+
+function splitFocusTerms(value) {
+  return String(value || "")
+    .split(/[,\n，、]+/)
+    .map((term) => term.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+}
+
+function dedupeFocusTerms(values, { limit = 12, maxLength = 36 } = {}) {
+  const list = [];
+  const seen = new Set();
+  values.forEach((value) => {
+    const topic = String(value || "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, maxLength);
+    if (!topic) return;
+    const key = topic.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    list.push(topic);
+  });
+  return list.slice(0, limit);
+}
+
+function formatTopicSummary(topics, limit = 3) {
+  if (!topics.length) return "";
+  const visible = topics.slice(0, limit);
+  return topics.length > limit ? `${visible.join(" / ")} +${topics.length - limit}` : visible.join(" / ");
+}
+
+function normalizeDigestMode(value) {
+  return value === "evening" ? "evening" : "morning";
+}
+
+function getDigestModeConfig(mode) {
+  if (mode === "evening") {
+    return {
+      mark: "Evening Recap",
+      title: "晚间情报回顾",
+      kicker: "Evening Lens",
+      fallbackTitle: "正在整理今天最值得回看的主线",
+      fallbackSummary: "四条内容流会把热点、研究、音乐和娱乐重新压缩成一版更适合复盘的晚间摘要。",
+      streamLabel: "在线内容流",
+      interestLabel: "今日偏好",
+      sortLabel: "当前检视方式",
+      primaryStoryLabel: "今日高点",
+      secondaryStoryLabel: "明早继续看",
+    };
+  }
+
+  return {
+    mark: "Morning Brief",
+    title: "晨间情报简报",
+    kicker: "Morning Lens",
+    fallbackTitle: "正在整理今早最值得先看的内容",
+    fallbackSummary: "四条内容流会把热点、研究、音乐和娱乐压缩成一版更适合快速扫读的晨间摘要。",
+    streamLabel: "在线内容流",
+    interestLabel: "兴趣偏向",
+    sortLabel: "当前排序方式",
+    primaryStoryLabel: "主线",
+    secondaryStoryLabel: "继续跟进",
+  };
+}
+
+function handleTopicInputKeydown(event) {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  handleAddTopic();
+}
+
+function handleAddTopic() {
+  const nextTopics = dedupeFocusTerms([...getSubscribedTopics(), ...splitFocusTerms(elements.topicInput?.value)], {
+    limit: 12,
+    maxLength: 28,
+  });
+  if (!nextTopics.length) {
+    showToastCard("还没有添加主题", "输入一个你真正关心的话题，比如 OpenAI、奥斯卡或 K-pop。");
+    return;
+  }
+
+  const changed = nextTopics.join("|") !== getSubscribedTopics().join("|");
+  state.settings.subscribedTopics = nextTopics;
+  if (elements.topicInput) {
+    elements.topicInput.value = "";
+  }
+  renderTopicChips();
+  saveSettings();
+  renderAll();
+  maybeRefreshDigest({ silent: true });
+
+  if (changed) {
+    showToastCard("订阅主题已更新", `当前会优先追踪 ${formatTopicSummary(nextTopics, 3)}。`);
+  }
+}
+
+function handleTopicChipAction(button) {
+  if (button.dataset.topicAction !== "remove") return;
+  const targetTopic = String(button.dataset.topic || "").toLowerCase();
+  if (!targetTopic) return;
+  const nextTopics = getSubscribedTopics().filter((topic) => topic.toLowerCase() !== targetTopic);
+  state.settings.subscribedTopics = nextTopics;
+  renderTopicChips();
+  saveSettings();
+  renderAll();
+  maybeRefreshDigest({ silent: true });
+}
+
+function handleDigestModeToggle(event) {
+  const nextMode = normalizeDigestMode(event.currentTarget?.dataset?.digestMode);
+  if (nextMode === state.settings.digestMode) return;
+  state.settings.digestMode = nextMode;
+  syncDigestModeControls();
+  saveSettings();
+  maybeRefreshDigest({ silent: true });
+  showToastCard(nextMode === "evening" ? "已切到晚报" : "已切到晨报", nextMode === "evening" ? "摘要会更偏向回顾和复盘。" : "摘要会更偏向快速扫读和开场浏览。");
+}
+
+function maybeRefreshDigest(options = {}) {
+  if (!elements.digestOutput?.dataset?.plaintext) return;
+  generateDigest(options);
 }
 
 function capitalize(value) {

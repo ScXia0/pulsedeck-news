@@ -8,8 +8,8 @@
       content="一个暗色科技风的个人情报网页应用，持续追踪全球热点、AI/NLP 前沿、近期热门歌曲与娱乐新闻。"
     />
     <meta name="theme-color" content="#060816" />
-    <link rel="manifest" href="./manifest.webmanifest?v=20" />
-    <link rel="stylesheet" href="./styles.css?v=20" />
+    <link rel="manifest" href="./manifest.webmanifest?v=21" />
+    <link rel="stylesheet" href="./styles.css?v=21" />
     <title>XscNews</title>
   </head>
   <body>
@@ -320,6 +320,17 @@
                   value="OpenAI, agent, LLM, NLP, geopolitics, startup"
                 />
               </label>
+              <div class="topic-builder">
+                <div class="topic-builder-head">
+                  <span>订阅主题</span>
+                  <span class="muted">添加后会参与推荐排序和摘要生成</span>
+                </div>
+                <div class="topic-builder-input">
+                  <input id="topicInput" type="text" placeholder="比如 OpenAI、K-pop、奥斯卡、Tesla" />
+                  <button id="addTopicBtn" class="secondary-button topic-add-button" type="button">添加主题</button>
+                </div>
+                <div id="topicChips" class="topic-chips"></div>
+              </div>
             </div>
           </div>
 
@@ -396,6 +407,10 @@
               <p class="panel-kicker">DIGEST</p>
               <h2>今日推送摘要</h2>
             </div>
+            <div class="panel-heading-actions digest-mode-actions">
+              <button id="digestMorningBtn" class="icon-button is-active" type="button" data-digest-mode="morning">晨报</button>
+              <button id="digestEveningBtn" class="icon-button" type="button" data-digest-mode="evening">晚报</button>
+            </div>
           </div>
           <div id="digestOutput" class="digest-output">
             <div class="digest-placeholder">
@@ -411,6 +426,6 @@
       回到顶部
     </button>
 
-    <script type="module" src="./app.js?v=20"></script>
+    <script type="module" src="./app.js?v=21"></script>
   </body>
 </html>

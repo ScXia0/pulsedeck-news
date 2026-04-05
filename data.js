@@ -178,7 +178,16 @@ export const entertainmentHotTopics = [
   },
 ];
 
-export function buildDigest(worldItems, researchItems, musicItems, entertainmentItems, keywords) {
+export function buildDigest(
+  worldItems,
+  researchItems,
+  musicItems,
+  entertainmentItems,
+  options = {},
+) {
+  const keywords = typeof options === "string" ? options : options.keywords || "";
+  const subscribedTopics = Array.isArray(options.subscribedTopics) ? options.subscribedTopics : [];
+  const digestMode = options.digestMode === "evening" ? "evening" : "morning";
   const world = worldItems[0];
   const research = researchItems[0];
   const music = musicItems[0];
@@ -187,31 +196,44 @@ export function buildDigest(worldItems, researchItems, musicItems, entertainment
   const secondResearch = researchItems[1];
   const secondMusic = musicItems[1];
   const secondEntertainment = entertainmentItems[1];
+  const topicLine = subscribedTopics.length ? subscribedTopics.join(" / ") : "未设置";
+  const title = digestMode === "evening" ? "晚间情报回顾" : "晨间情报简报";
+  const opener =
+    digestMode === "evening"
+      ? "适合在收尾时快速回看今天主线、次线和明早还值得继续盯的内容。"
+      : "适合在开始一天前快速扫过主线、重点和接下来值得先盯的内容。";
+  const worldFollowLabel = digestMode === "evening" ? "明早继续看" : "补充线索";
+  const researchFollowLabel = digestMode === "evening" ? "继续观察" : "补充线索";
+  const musicFollowLabel = digestMode === "evening" ? "下一首关注" : "补充线索";
+  const entertainmentFollowLabel = digestMode === "evening" ? "下一波热度" : "补充线索";
 
   return [
-    "今日情报简报",
+    title,
+    "",
+    opener,
     "",
     `1. 全球热点重点: ${world?.title || "暂无"}`,
     `摘要: ${world?.summary || "暂无摘要"}`,
-    `补充线索: ${secondWorld?.title || "暂无补充线索"}`,
+    `${worldFollowLabel}: ${secondWorld?.title || "暂无补充线索"}`,
     `影响面: ${world?.relevance || "待补充"}`,
     "",
     `2. AI / NLP 重点: ${research?.title || "暂无"}`,
     `摘要: ${research?.summary || "暂无摘要"}`,
-    `补充线索: ${secondResearch?.title || "暂无补充线索"}`,
+    `${researchFollowLabel}: ${secondResearch?.title || "暂无补充线索"}`,
     `落地方向: ${research?.relevance || "待补充"}`,
     "",
     `3. 热门歌曲重点: ${music?.title || "暂无"}${music?.relevance ? ` · ${music.relevance}` : ""}`,
     `摘要: ${music?.summary || "暂无摘要"}`,
-    `补充线索: ${secondMusic?.title || "暂无补充线索"}`,
+    `${musicFollowLabel}: ${secondMusic?.title || "暂无补充线索"}`,
     `热度线索: ${music?.signal || "待补充"}`,
     "",
     `4. 娱乐新闻重点: ${entertainment?.title || "暂无"}`,
     `摘要: ${entertainment?.summary || "暂无摘要"}`,
-    `补充线索: ${secondEntertainment?.title || "暂无补充线索"}`,
+    `${entertainmentFollowLabel}: ${secondEntertainment?.title || "暂无补充线索"}`,
     `关注面: ${entertainment?.relevance || "待补充"}`,
     "",
     `5. 当前追踪关键词: ${keywords || "未设置"}`,
+    `6. 当前订阅主题: ${topicLine}`,
     "",
     "注: 当前版本已经优先连接真实新闻源、真实论文源、音乐榜单源和娱乐新闻源；如果网络或源站异常，会自动回退到本地后备数据，确保页面始终可用。",
   ].join("\n");
