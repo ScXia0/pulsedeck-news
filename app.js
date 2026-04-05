@@ -1109,6 +1109,7 @@ function buildFeedCoverMarkup(type, item, index) {
         src="${escapeAttribute(buildEditorialImageUrl(type, item))}"
         alt="${escapeAttribute(`${item.title} visual`)}"
         loading="lazy"
+        referrerpolicy="no-referrer"
       />
       <div class="feed-cover-art-overlay"></div>
     `
@@ -1199,6 +1200,9 @@ function buildFeedCoverMarkup(type, item, index) {
 }
 
 function buildEditorialImageUrl(type, item) {
+  if (item.image && type === "world") {
+    return item.image;
+  }
   return buildEditorialPosterDataUrl(
     type,
     item.title || streamTitle(type),
@@ -1211,32 +1215,63 @@ function buildEditorialPosterDataUrl(type, title, accent, provider) {
   const safeTitle = String(title || streamTitle(type)).trim().slice(0, 36);
   const safeAccent = String(accent || "Live").trim().slice(0, 20);
   const safeProvider = String(provider || streamTitle(type)).trim().slice(0, 18);
-  const palette =
+  const seed = hashString(`${type}|${safeTitle}|${safeAccent}|${safeProvider}`);
+  const variant = seed % 3;
+  const paletteOptions =
     type === "research"
-      ? {
-          primary: "#76ffbb",
-          secondary: "#6ddcff",
-          backdrop: "#08121d",
-          line: "rgba(118,255,187,0.38)",
-          label: "LAB NOTES",
-        }
-      : {
-          primary: "#78d8ff",
-          secondary: "#7a89ff",
-          backdrop: "#0b1426",
-          line: "rgba(120,216,255,0.34)",
-          label: "GLOBAL RADAR",
-        };
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 320" role="img" aria-label="${escapeSvgText(safeTitle)}">
-      <defs>
-        <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="${palette.primary}"/>
-          <stop offset="100%" stop-color="${palette.secondary}"/>
-        </linearGradient>
-      </defs>
-      <rect width="520" height="320" rx="32" fill="${palette.backdrop}"/>
-      <rect x="24" y="24" width="472" height="272" rx="24" fill="url(#panel)" fill-opacity="0.18"/>
+      ? [
+          {
+            primary: "#76ffbb",
+            secondary: "#6ddcff",
+            backdrop: "#08121d",
+            line: "rgba(118,255,187,0.38)",
+            label: "LAB NOTES",
+          },
+          {
+            primary: "#8bf7ff",
+            secondary: "#75ffb6",
+            backdrop: "#07151a",
+            line: "rgba(139,247,255,0.36)",
+            label: "PAPER RADAR",
+          },
+          {
+            primary: "#7de6ff",
+            secondary: "#a1ffc4",
+            backdrop: "#0a1820",
+            line: "rgba(125,230,255,0.34)",
+            label: "RESEARCH GRID",
+          },
+        ]
+      : [
+          {
+            primary: "#78d8ff",
+            secondary: "#7a89ff",
+            backdrop: "#0b1426",
+            line: "rgba(120,216,255,0.34)",
+            label: "GLOBAL RADAR",
+          },
+          {
+            primary: "#7cc9ff",
+            secondary: "#7cf0ff",
+            backdrop: "#081225",
+            line: "rgba(124,201,255,0.34)",
+            label: "NEWSWIRE",
+          },
+          {
+            primary: "#88e1ff",
+            secondary: "#9aa8ff",
+            backdrop: "#0a1321",
+            line: "rgba(154,168,255,0.28)",
+            label: "WORLD DESK",
+          },
+        ];
+  const palette = paletteOptions[variant];
+  const titleFontSize = safeTitle.length > 22 ? 30 : safeTitle.length > 14 ? 34 : 38;
+  const accentY = variant === 2 ? 216 : 196;
+  const providerY = variant === 1 ? 268 : 246;
+  const variantArtwork =
+    variant === 0
+      ? `
       <g stroke="${palette.line}" stroke-width="1">
         <path d="M48 88H472"/>
         <path d="M48 128H472"/>
@@ -1250,12 +1285,50 @@ function buildEditorialPosterDataUrl(type, title, accent, provider) {
       </g>
       <circle cx="398" cy="112" r="78" fill="${palette.primary}" fill-opacity="0.12"/>
       <circle cx="132" cy="214" r="54" fill="${palette.secondary}" fill-opacity="0.14"/>
+      <path d="M332 214c18-34 38-60 60-78 22 16 40 41 54 75" fill="none" stroke="${palette.primary}" stroke-width="14" stroke-linecap="round"/>
+    `
+      : variant === 1
+        ? `
+      <g stroke="${palette.line}" stroke-width="1.2" fill="none">
+        <path d="M70 84h144"/>
+        <path d="M70 112h380"/>
+        <path d="M70 140h380"/>
+        <path d="M70 168h310"/>
+        <path d="M70 196h244"/>
+        <path d="M70 224h196"/>
+      </g>
+      <rect x="332" y="66" width="126" height="126" rx="24" fill="${palette.primary}" fill-opacity="0.12"/>
+      <circle cx="395" cy="129" r="34" fill="${palette.secondary}" fill-opacity="0.22"/>
+      <path d="M340 206c18-18 36-30 56-34 27-6 48 2 72 22" fill="none" stroke="${palette.primary}" stroke-width="12" stroke-linecap="round"/>
+    `
+        : `
+      <g stroke="${palette.line}" stroke-width="1">
+        <path d="M64 78L456 78"/>
+        <path d="M64 242L456 242"/>
+        <path d="M96 52L96 268"/>
+        <path d="M424 52L424 268"/>
+      </g>
+      <rect x="322" y="66" width="108" height="160" rx="26" fill="${palette.primary}" fill-opacity="0.12"/>
+      <rect x="344" y="88" width="64" height="64" rx="16" fill="${palette.secondary}" fill-opacity="0.18"/>
+      <circle cx="176" cy="234" r="64" fill="${palette.secondary}" fill-opacity="0.1"/>
+      <path d="M314 238c26-20 54-36 92-46" fill="none" stroke="${palette.primary}" stroke-width="12" stroke-linecap="round"/>
+    `;
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 320" role="img" aria-label="${escapeSvgText(safeTitle)}">
+      <defs>
+        <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="${palette.primary}"/>
+          <stop offset="100%" stop-color="${palette.secondary}"/>
+        </linearGradient>
+      </defs>
+      <rect width="520" height="320" rx="32" fill="${palette.backdrop}"/>
+      <rect x="24" y="24" width="472" height="272" rx="24" fill="url(#panel)" fill-opacity="0.18"/>
+      ${variantArtwork}
       <rect x="56" y="62" width="156" height="32" rx="16" fill="${palette.primary}" fill-opacity="0.22"/>
       <text x="78" y="84" fill="#f7fbff" fill-opacity="0.86" font-family="Avenir Next, PingFang SC, sans-serif" font-size="18" letter-spacing="3">${palette.label}</text>
-      <text x="56" y="148" fill="#f7fbff" font-family="Avenir Next, PingFang SC, sans-serif" font-size="36" font-weight="700">${escapeSvgText(safeTitle)}</text>
-      <text x="56" y="196" fill="#f7fbff" fill-opacity="0.82" font-family="Avenir Next, PingFang SC, sans-serif" font-size="22">${escapeSvgText(safeAccent)}</text>
-      <text x="56" y="246" fill="#f7fbff" fill-opacity="0.62" font-family="Avenir Next, PingFang SC, sans-serif" font-size="18">${escapeSvgText(safeProvider)}</text>
-      <path d="M332 214c18-34 38-60 60-78 22 16 40 41 54 75" fill="none" stroke="${palette.primary}" stroke-width="14" stroke-linecap="round"/>
+      <text x="56" y="148" fill="#f7fbff" font-family="Avenir Next, PingFang SC, sans-serif" font-size="${titleFontSize}" font-weight="700">${escapeSvgText(safeTitle)}</text>
+      <text x="56" y="${accentY}" fill="#f7fbff" fill-opacity="0.82" font-family="Avenir Next, PingFang SC, sans-serif" font-size="22">${escapeSvgText(safeAccent)}</text>
+      <text x="56" y="${providerY}" fill="#f7fbff" fill-opacity="0.62" font-family="Avenir Next, PingFang SC, sans-serif" font-size="18">${escapeSvgText(safeProvider)}</text>
     </svg>
   `.trim();
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
@@ -1269,26 +1342,57 @@ function buildEntertainmentImageUrl(item) {
 function buildEntertainmentPosterDataUrl(title, accent) {
   const safeTitle = String(title || "Entertainment").trim().slice(0, 32);
   const safeAccent = String(accent || "Buzz").trim().slice(0, 20);
+  const seed = hashString(`${safeTitle}|${safeAccent}`);
+  const variant = seed % 3;
+  const palette = [
+    { primary: "#ff7eb6", secondary: "#ffb067", backdrop: "#170a1f", label: "ENTERTAINMENT" },
+    { primary: "#ff8ac9", secondary: "#ffcf70", backdrop: "#1b0b21", label: "CULTURE WATCH" },
+    { primary: "#ff9caa", secondary: "#ff9f69", backdrop: "#18091d", label: "BUZZ DESK" },
+  ][variant];
+  const coverArt =
+    variant === 0
+      ? `
+      <rect x="54" y="64" width="170" height="206" rx="24" fill="#0d1328" fill-opacity="0.88"/>
+      <circle cx="139" cy="126" r="42" fill="#f6fbff" fill-opacity="0.92"/>
+      <path d="M102 196c12-21 31-32 57-32 26 0 45 11 57 32" stroke="#f6fbff" stroke-width="16" stroke-linecap="round" fill="none"/>
+    `
+      : variant === 1
+        ? `
+      <rect x="54" y="64" width="170" height="206" rx="24" fill="#0d1328" fill-opacity="0.88"/>
+      <rect x="84" y="96" width="110" height="66" rx="18" fill="#f6fbff" fill-opacity="0.9"/>
+      <path d="M86 216c18-16 38-28 60-32 22-4 42-2 68 10" stroke="#f6fbff" stroke-width="14" stroke-linecap="round" fill="none"/>
+    `
+        : `
+      <rect x="54" y="64" width="170" height="206" rx="24" fill="#0d1328" fill-opacity="0.88"/>
+      <circle cx="139" cy="120" r="30" fill="#f6fbff" fill-opacity="0.92"/>
+      <rect x="92" y="164" width="94" height="56" rx="16" fill="#f6fbff" fill-opacity="0.88"/>
+    `;
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" role="img" aria-label="${safeTitle}">
       <defs>
         <linearGradient id="entbg" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="#ff7eb6"/>
-          <stop offset="100%" stop-color="#ffb067"/>
+          <stop offset="0%" stop-color="${palette.primary}"/>
+          <stop offset="100%" stop-color="${palette.secondary}"/>
         </linearGradient>
       </defs>
-      <rect width="480" height="320" rx="36" fill="#170a1f"/>
+      <rect width="480" height="320" rx="36" fill="${palette.backdrop}"/>
       <rect x="18" y="18" width="444" height="284" rx="28" fill="url(#entbg)"/>
       <circle cx="356" cy="110" r="92" fill="#ffffff" fill-opacity="0.12"/>
-      <rect x="54" y="64" width="170" height="206" rx="24" fill="#0d1328" fill-opacity="0.88"/>
-      <circle cx="139" cy="126" r="42" fill="#f6fbff" fill-opacity="0.92"/>
-      <path d="M102 196c12-21 31-32 57-32 26 0 45 11 57 32" stroke="#f6fbff" stroke-width="16" stroke-linecap="round" fill="none"/>
-      <text x="262" y="108" fill="#fff9fd" font-family="Avenir Next, PingFang SC, sans-serif" font-size="22" letter-spacing="4">ENTERTAINMENT</text>
+      ${coverArt}
+      <text x="262" y="108" fill="#fff9fd" font-family="Avenir Next, PingFang SC, sans-serif" font-size="22" letter-spacing="4">${palette.label}</text>
       <text x="262" y="165" fill="#fff9fd" font-family="Avenir Next, PingFang SC, sans-serif" font-size="34" font-weight="700">${escapeSvgText(safeTitle)}</text>
       <text x="262" y="207" fill="#fff9fd" fill-opacity="0.8" font-family="Avenir Next, PingFang SC, sans-serif" font-size="20">${escapeSvgText(safeAccent)}</text>
     </svg>
   `.trim();
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+function hashString(value) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return hash;
 }
 
 function escapeSvgText(value) {
