@@ -476,7 +476,9 @@ class PulseDeckHandler(SimpleHTTPRequestHandler):
                 self.send_header("Cache-Control", "public, max-age=86400")
                 self.end_headers()
                 return
-            self.respond_music_art_placeholder(title, artist)
+            self.send_response(HTTPStatus.NOT_FOUND.value)
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
             return
 
         if parsed.path in {"/api/world", "/api/research", "/api/music", "/api/entertainment"}:
@@ -505,51 +507,6 @@ class PulseDeckHandler(SimpleHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
-
-    def respond_music_art_placeholder(self, title: str, artist: str) -> None:
-        primary = html.escape((title or "Music")[:20])
-        secondary = html.escape((artist or "Track")[:20])
-        seed = stable_hash(f"{title}|{artist}")
-        variant = seed % 3
-        palette = [
-            {"primary": "#ffb067", "secondary": "#ff7eb6", "backdrop": "#120d1e"},
-            {"primary": "#ffd887", "secondary": "#7a89ff", "backdrop": "#141024"},
-            {"primary": "#8ce0ff", "secondary": "#ff98b7", "backdrop": "#100f20"},
-        ][variant]
-        cover_art = (
-            '<circle cx="160" cy="160" r="92" fill="#10162f" opacity="0.9"/>'
-            '<circle cx="160" cy="160" r="20" fill="#f4f7ff" opacity="0.9"/>'
-            '<path d="M208 92v96.5c-8-5.4-20.5-6.6-31.1-2.4-15.4 6.1-24.4 20.2-20.2 31.6 4.2 11.4 20 15.8 35.4 9.7 12.8-5 21.2-15.3 21.5-25.4l0.1-0.5V118l40-7v64.5c-8-5.4-20.5-6.6-31.1-2.4-15.4 6.1-24.4 20.2-20.2 31.6 4.2 11.4 20 15.8 35.4 9.7 12.9-5.1 21.4-15.6 21.5-25.8V88z" fill="#f6fbff" opacity="0.92"/>'
-            if variant == 0
-            else '<rect x="72" y="72" width="176" height="176" rx="34" fill="#10162f" opacity="0.92"/>'
-            '<circle cx="160" cy="144" r="48" fill="#f6fbff" opacity="0.88"/>'
-            '<path d="M110 228c18-18 35-28 50-30 26-4 50 7 84 34" stroke="#f6fbff" stroke-width="16" stroke-linecap="round" fill="none"/>'
-            if variant == 1
-            else '<rect x="64" y="64" width="192" height="192" rx="42" fill="#10162f" opacity="0.92"/>'
-            '<rect x="94" y="100" width="132" height="52" rx="18" fill="#f6fbff" opacity="0.88"/>'
-            '<rect x="110" y="172" width="100" height="56" rx="18" fill="#f6fbff" opacity="0.82"/>'
-        )
-        svg = f"""
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" role="img" aria-label="{primary}">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="{palette['primary']}"/>
-      <stop offset="100%" stop-color="{palette['secondary']}"/>
-    </linearGradient>
-  </defs>
-  <rect width="320" height="320" rx="36" fill="{palette['backdrop']}"/>
-  <rect x="18" y="18" width="284" height="284" rx="30" fill="url(#bg)"/>
-  {cover_art}
-  <text x="34" y="265" fill="#f7fbff" font-family="Avenir Next, PingFang SC, sans-serif" font-size="24" font-weight="700">{primary}</text>
-  <text x="34" y="290" fill="#f7fbff" fill-opacity="0.78" font-family="Avenir Next, PingFang SC, sans-serif" font-size="15">{secondary}</text>
-</svg>
-        """.strip().encode("utf-8")
-        self.send_response(HTTPStatus.OK.value)
-        self.send_header("Content-Type", "image/svg+xml; charset=utf-8")
-        self.send_header("Content-Length", str(len(svg)))
-        self.send_header("Cache-Control", "public, max-age=86400")
-        self.end_headers()
-        self.wfile.write(svg)
 
 
 def get_cached_feed(feed_type: str, keywords: list[str], force_refresh: bool = False) -> dict[str, Any]:
@@ -1380,10 +1337,6 @@ def normalize_dedupe_key(url: str, title: str) -> str:
 def hashed_id(*parts: str) -> str:
     digest = hashlib.sha1("||".join(parts).encode("utf-8")).hexdigest()
     return digest
-
-
-def stable_hash(value: str) -> int:
-    return int(hashlib.sha1(value.encode("utf-8")).hexdigest()[:8], 16)
 
 
 def clean_text(value: Any) -> str:

@@ -1091,7 +1091,11 @@ function buildCoverToken(type, item) {
 }
 
 function buildMusicArtworkUrl(item) {
-  return item.artwork || "";
+  if (item.artwork) return item.artwork;
+  const title = encodeURIComponent(item.title || "");
+  const artist = encodeURIComponent(item.artist || item.relevance || "");
+  if (!title && !artist) return "";
+  return `/api/music-art?title=${title}&artist=${artist}`;
 }
 
 function buildFeedCoverMarkup(type, item, index) {
@@ -1109,6 +1113,7 @@ function buildFeedCoverMarkup(type, item, index) {
         alt="${escapeAttribute(`${item.title} visual`)}"
         loading="lazy"
         referrerpolicy="no-referrer"
+        onerror="this.remove(); this.nextElementSibling?.remove(); this.closest('.feed-cover')?.classList.remove('has-artwork','feed-cover-editorial-card');"
       />
       <div class="feed-cover-art-overlay"></div>
     `
@@ -1121,6 +1126,7 @@ function buildFeedCoverMarkup(type, item, index) {
         alt="${escapeAttribute(`${item.title} cover`)}"
         loading="lazy"
         referrerpolicy="no-referrer"
+        onerror="this.remove(); this.nextElementSibling?.remove(); this.closest('.feed-cover')?.classList.remove('has-artwork','feed-cover-music-card');"
       />
       <div class="feed-cover-art-overlay"></div>
     `
@@ -1167,6 +1173,7 @@ function buildFeedCoverMarkup(type, item, index) {
         alt="${escapeAttribute(`${item.title} poster`)}"
         loading="lazy"
         referrerpolicy="no-referrer"
+        onerror="this.remove(); this.nextElementSibling?.remove(); this.closest('.feed-cover')?.classList.remove('has-artwork','feed-cover-entertainment-card');"
       />
       <div class="feed-cover-art-overlay"></div>
     `
